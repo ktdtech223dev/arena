@@ -1,0 +1,30 @@
+{
+  "name": "arena-launcher",
+  "productName": "ARENA",
+  "version": "1.0.0",
+  "description": "ARENA — Titanfall-style movement FPS. Native desktop launcher.",
+  "author": "N Games",
+  "main": "main.cjs",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "^33.3.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.ngames.arena",
+    "productName": "ARENA",
+    "directories": { "output": "release" },
+    "files": ["main.cjs", "package.json"],
+    "compression": "maximum",
+    "win": {
+      "target": "portable"
+    },
+    "portable": {
+      "artifactName": "ARENA-${version}-portable.exe"
+    }
+  }
+}

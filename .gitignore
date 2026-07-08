@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+
+# electron launcher deps + build artifacts (the .exe ships as a GitHub release asset)
+launcher/node_modules/
+launcher/release/
+
+# server runtime data + local session/editor state
+.devdata/
+data/
+.claude/
+.railwayignore

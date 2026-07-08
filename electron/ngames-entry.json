@@ -1,0 +1,23 @@
+{
+  "id": "arena",
+  "title": "ARENA",
+  "subtitle": "Titanfall-style movement FPS — multiplayer test arena",
+  "type": "web",
+  "url": "https://range-production-bd9e.up.railway.app/?mode=arena",
+  "singlePlayerUrl": "https://range-production-bd9e.up.railway.app/",
+  "electron": "electron/main.js",
+  "launch": "npx electron electron/main.js",
+  "server": {
+    "host": "railway",
+    "service": "range",
+    "healthCheck": "https://range-production-bd9e.up.railway.app/health",
+    "authoritative": true,
+    "tickRate": 60
+  },
+  "lobby": {
+    "alwaysOn": true,
+    "maxPlayers": 6,
+    "crew": ["Keshawn", "Sean", "Amari", "Dart", "Tyheim", "Arisa"]
+  },
+  "notes": "Always-on shared lobby — no room codes/invites. Players join on connect. Single-player RANGE testbed lives at the root URL; add ?mode=arena for multiplayer. Match/scoring/pickups/map-rotation are NOT in this build (server is built so they bolt on)."
+}
