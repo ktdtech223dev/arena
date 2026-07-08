@@ -171,9 +171,14 @@ export class EditorUI {
     injectCss('editor-ui-css', CSS);
     const parent = document.getElementById('ui') || document.body;
     this.root = document.createElement('div');
-    // NOT 'interactive' — that global class forces pointer-events:auto on the whole
-    // full-screen overlay, which would swallow play-area clicks (so click-to-look
-    // never reaches the canvas). The individual panels re-enable pointer-events.
+    // The ROOT is deliberately NOT 'interactive': the global #ui rule makes
+    // '.interactive' (and its subtree) pointer-events:auto, so marking the root would
+    // swallow play-area clicks (click-to-look would never reach the canvas). Instead
+    // each interactive PANEL carries 'interactive' (see _build), so the panels are
+    // clickable while the empty root stays passthrough. NB: the panels' own
+    // '.ed-pal{pointer-events:auto}' CSS is NOT enough — '#ui *{pointer-events:none}'
+    // is an ID selector and outranks a bare class, so the 'interactive' class (also
+    // #ui-scoped) is what actually re-enables them.
     this.root.className = 'ed-root';
     parent.appendChild(this.root);
     this._build();
@@ -184,7 +189,7 @@ export class EditorUI {
   _build() {
     this.root.innerHTML = `
       <div class="ed-cross"></div>
-      <div class="ed-top">
+      <div class="ed-top interactive">
         <span class="ed-brand">EDITOR</span>
         <input class="ed-name" type="text" maxlength="40" placeholder="Map name" />
         <span class="ed-sep"></span>
@@ -205,12 +210,12 @@ export class EditorUI {
         <span class="ed-mode-pill place">PLACE</span>
         <span class="ed-lights">0 / ${MAX_CUSTOM_LIGHTS}</span>
       </div>
-      <div class="ed-pal">
+      <div class="ed-pal interactive">
         <div class="ed-tabs"></div>
         <div class="ed-items"></div>
       </div>
-      <div class="ed-props"></div>
-      <div class="ed-help">
+      <div class="ed-props interactive"></div>
+      <div class="ed-help interactive">
         <span class="ed-hclose">✕</span>
         <b>B</b> / <b>Esc</b> close build menu · <b>WASD</b> fly · <b>Space</b> up · <b>Ctrl/Q</b> down · <b>Shift</b> boost ·
         <b>1–9</b> hotbar · <b>L-Click</b> place · <b>Del</b> delete · <b>TAB</b> place/edit · <b>G</b> snap · <b>[ ]</b> grid ·
@@ -218,8 +223,8 @@ export class EditorUI {
       </div>
       <div class="ed-toasts"></div>
       <div class="ed-fphint"><b>Click</b> to look around · <b>WASD</b> fly · <b>B</b> build menu · <b>L-Click</b> place · <b>Del</b> delete · <b>Esc</b> menu</div>
-      <div class="ed-hotbar"></div>
-      <div class="ed-scrim"><div class="ed-modal"></div></div>`;
+      <div class="ed-hotbar interactive"></div>
+      <div class="ed-scrim interactive"><div class="ed-modal"></div></div>`;
 
     this.topName = this.root.querySelector('.ed-name');
     this.skySel = this.root.querySelector('.ed-sky');
