@@ -58,11 +58,13 @@ export class Game {
   // GRANT a pickup's effect to a player (server-authoritative). Emits a 'pickup'
   // event to that player so the client can switch weapon / show a HUD cue.
   grantPickup(p, pk, now) {
+    // a pooled (random) weapon spawner grants its currently-rolled gun (pk.current).
+    const weapon = pk.current || pk.weapon;
     if (pk.kind === 'health') p.hp = Math.min(100, p.hp + (pk.amount || 50));
     else if (pk.kind === 'armor') p.armor = Math.min(100, (p.armor || 0) + (pk.amount || 50));
-    else if (pk.kind === 'weapon') { if (pk.weapon) p.weaponId = pk.weapon; }
+    else if (pk.kind === 'weapon') { if (weapon) p.weaponId = weapon; }
     else if (pk.kind === 'powerup') Pickups.applyPowerup(p, pk.powerup, now);
-    this.io.to(p.id).emit('pickup', { id: pk.id, kind: pk.kind, weapon: pk.weapon, powerup: pk.powerup });
+    this.io.to(p.id).emit('pickup', { id: pk.id, kind: pk.kind, weapon, powerup: pk.powerup });
   }
 
   spawnProjectile(player, projKind, origin, dir) { if (player.alive) this.projectiles.spawnFromWeapon(projKind, player, origin, dir); }

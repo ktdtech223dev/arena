@@ -698,11 +698,35 @@ export class WeaponManager {
     this.lastMeleeId = 'knife'; // V toggles to the last melee weapon used (default knife)
     this._pendingId = null;
     this._booted = false;
+
+    // acquired = the weapon ids the player currently OWNS. Defaults to the FULL
+    // roster so RANGE + built-in arena maps are unchanged. On CUSTOM maps the net
+    // layer strips this to a starter loadout so guns must be found as pickups.
+    this.acquired = new Set(this.defs.map((d) => d.id));
+  }
+
+  _owned(id) { return !this.acquired || this.acquired.has(id); }
+
+  /** Grant a weapon id into the owned set (from a pickup). */
+  grant(id) { if (this.weapons.has(id)) this.acquired.add(id); }
+
+  /** Replace the owned set (a loadout change). Keeps `current` valid. */
+  setAcquired(ids) {
+    this.acquired = new Set((Array.isArray(ids) ? ids : []).filter((id) => this.weapons.has(id)));
+    if (this.acquired.size === 0) this.acquired.add('knife');
+    // if the held (or pending) gun is no longer owned, swap to an owned one
+    // (prefer a firearm, else whatever's left) so the HUD never holds nothing.
+    if (!this._owned(this._pendingId ?? this.current?.def?.id)) {
+      const gun = this.defs.find((d) => d.type !== 'melee' && this.acquired.has(d.id));
+      const fallback = gun ? gun.id : [...this.acquired][0];
+      if (fallback) this.select(fallback);
+    }
   }
 
   /** Switch to a weapon by id — holsters the current gun first. */
   select(id) {
     if (!this.weapons.has(id)) return;
+    if (this.acquired && !this.acquired.has(id)) return; // not owned yet (custom map)
     if (this._pendingId) {
       this._pendingId = id; // retarget mid-holster
       return;
@@ -761,13 +785,14 @@ export class WeaponManager {
     for (let i = 1; i <= 9; i++) {
       if (input.consumePressed('slot' + i)) {
         const def = this.defs.find((d) => d.slot === i) ?? this.defs[i - 1];
-        if (def) this.select(def.id);
+        if (def && this._owned(def.id)) this.select(def.id);
       }
     }
 
-    // V — dedicated MELEE slot: switch to the last melee weapon used (default knife).
+    // V — dedicated MELEE slot: switch to the last (owned) melee weapon (default knife).
     if (input.consumePressed('melee')) {
-      const target = this.weapons.has(this.lastMeleeId) ? this.lastMeleeId : 'knife';
+      let target = (this.weapons.has(this.lastMeleeId) && this._owned(this.lastMeleeId)) ? this.lastMeleeId : 'knife';
+      if (!this._owned(target)) { const m = this.defs.find((d) => d.type === 'melee' && this._owned(d.id)); if (m) target = m.id; }
       this.select(target);
     }
 
@@ -775,11 +800,15 @@ export class WeaponManager {
 
     const w = input.consumeWheel();
     if (w) {
-      const baseId = this._pendingId ?? this.current.def.id;
-      const idx = this.defs.findIndex((d) => d.id === baseId);
-      const n = this.defs.length;
-      const next = this.defs[(((idx + w) % n) + n) % n];
-      this.select(next.id);
+      // cycle only through OWNED weapons (custom maps start with a stripped set).
+      const list = this.defs.filter((d) => this._owned(d.id));
+      if (list.length) {
+        const baseId = this._pendingId ?? this.current.def.id;
+        let idx = list.findIndex((d) => d.id === baseId);
+        if (idx < 0) idx = 0;
+        const n = list.length;
+        this.select(list[(((idx + w) % n) + n) % n].id);
+      }
     }
   }
 }

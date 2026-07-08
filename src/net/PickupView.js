@@ -20,6 +20,13 @@ const KIND_COLOR = {
   weapon: 0xffd166, health: 0x51e898, armor: 0x7df9ff, powerup: 0xb15bff,
 };
 
+// per-weapon tint for a RANDOM spawner marker so it reflects the currently-rolled
+// gun (the server sends it in the alive snapshot for pooled spawners).
+const WEAPON_TINT = {
+  pistol: 0xdfe7f0, smg: 0x8ab6ff, shotgun: 0xffb14a, ar: 0x51e898, sniper: 0xff6b6b,
+  dmr: 0x7df9ff, revolver: 0xffd166, exotic: 0xb15bff, sawblade: 0xff5a1e,
+};
+
 // ---------------------------------------------------------------------------
 // one pickup marker: a small group at the pickup's world pos, bobbing + spinning.
 // ---------------------------------------------------------------------------
@@ -29,6 +36,8 @@ class PickupMarker {
     this.id = pickup.id;
     this.kind = pickup.kind || 'weapon';
     this.basePos = new THREE.Vector3(pickup.pos?.x || 0, pickup.pos?.y || 0, pickup.pos?.z || 0);
+    this.pool = (Array.isArray(pickup.pool) && pickup.pool.length) ? pickup.pool : null; // random spawner?
+    this.weapon = pickup.weapon || null;
     this.color = KIND_COLOR[this.kind] || 0xffffff;
 
     this.alive = true;         // server-reported alive state
@@ -131,6 +140,17 @@ class PickupMarker {
     if (alive) this.appear = 0; // trigger the respawn shimmer
   }
 
+  // random spawner: retint the whole marker to the currently-rolled weapon's color.
+  setWeapon(w) {
+    if (!this.pool || !w || w === this.weapon) return;
+    this.weapon = w;
+    const c = WEAPON_TINT[w] ?? KIND_COLOR.weapon;
+    this.color = c;
+    const col = new THREE.Color(c);
+    for (const m of this._solids) { m.color?.copy(col); if (m.emissive) m.emissive.copy(col); }
+    for (const m of this._mats) { m.color?.copy(col); }
+  }
+
   dispose() {
     this.scene.remove(this.group);
     if (this._geos) for (const g of this._geos) g?.dispose?.();
@@ -173,8 +193,10 @@ export class PickupView {
     if (Array.isArray(alive)) {
       for (const a of alive) {
         if (a == null) continue;
-        if (typeof a === 'object') { if (a.alive !== false && a.id != null) aliveSet.add(a.id); }
-        else aliveSet.add(a);
+        if (typeof a === 'object') {
+          if (a.alive !== false && a.id != null) aliveSet.add(a.id);
+          if (a.id != null && a.weapon != null) this.markers.get(a.id)?.setWeapon?.(a.weapon); // random spawner tint
+        } else aliveSet.add(a);
       }
     } else if (alive == null) {
       // no pickup field this snap → assume all alive (don't spuriously hide)

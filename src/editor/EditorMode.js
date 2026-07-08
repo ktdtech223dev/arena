@@ -590,9 +590,11 @@ export class EditorMode {
   _placeLight(pos) {
     if (this.atLightCap()) { this.ui.toast(`Light cap reached (${MAX_CUSTOM_LIGHTS} max)`, 'err'); return; }
     this._pushHistory();
-    const kind = this.active.id === 'spot' ? 'spot' : 'point';
-    const def = LIGHT_KINDS[kind];
-    const rec = { __uid: uid(), kind, x: pos.x, y: pos.y, z: pos.z, color: 0xffffff, intensity: def.intensity, dist: def.dist };
+    // the palette id may be a PRESET (torch/ember/cool/neon/flood) that resolves to
+    // a base point|spot with a default color/intensity/dist.
+    const pdef = LIGHT_KINDS[this.active.id] || LIGHT_KINDS.point;
+    const kind = pdef.base || (this.active.id === 'spot' ? 'spot' : 'point');
+    const rec = { __uid: uid(), kind, x: pos.x, y: pos.y, z: pos.z, color: pdef.color ?? 0xffffff, intensity: pdef.intensity, dist: pdef.dist };
     this.map.lights.push(rec);
     this._addLightMesh(rec);
     this.ui.refreshCounts();

@@ -74,6 +74,10 @@ export class CustomEnv extends MapEnv {
     if (!b || typeof b !== 'object') return;
     const def = BLOCK_TYPES[b.type];
     if (!def) return; // unknown type → skip (guarded)
+    // dynamic/networked types (doors, breakables, barrels, hazards) are drawn +
+    // animated by MapEnv._buildDynamicObjects from data.doors/destructibles/etc.,
+    // so DON'T also draw them here as static blocks (double-draw + wouldn't move).
+    if (def.door || def.destructible || def.barrel || def.hazard) return;
     const s = [num(b.sx, def.size[0]), num(b.sy, def.size[1]), num(b.sz, def.size[2])];
     const x = num(b.x, 0), y = num(b.y, 0), z = num(b.z, 0), ry = num(b.ry, 0);
     const color = (typeof b.color === 'number') ? b.color : def.color;
@@ -81,8 +85,10 @@ export class CustomEnv extends MapEnv {
     const wallrun = (b.wallrun != null) ? !!b.wallrun : !!def.wallrun;
 
     // classify: a plain axis-aligned lit BOX can merge straight into the batch.
+    // `shaped` props (crate/container/beacon/fence/rock) have a custom mesh, so
+    // they take the buildBlockMesh path instead of merging into a plain box.
     const isBox = def.cat !== 'ramp' && !def.round && !def.arch && !def.pad
-      && !def.emissiveOnly && !wallrun && b.type !== 'runwall';
+      && !def.emissiveOnly && !def.shaped && !wallrun && b.type !== 'runwall';
     const axisAligned = Math.abs(((ry % (Math.PI / 2)) + Math.PI) % (Math.PI / 2)) < 1e-3
       || Math.abs(ry) < 1e-3;
 

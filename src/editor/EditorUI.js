@@ -14,6 +14,9 @@ const CATS = [
   { id: 'structural', label: 'Structural', kind: 'block' },
   { id: 'ramp', label: 'Ramps', kind: 'block' },
   { id: 'movement', label: 'Movement', kind: 'block' },
+  { id: 'props', label: 'Props', kind: 'block' },
+  { id: 'hazard', label: 'Hazards', kind: 'block' },
+  { id: 'interactive', label: 'Interactive', kind: 'block' },
   { id: 'cosmetic', label: 'Cosmetic', kind: 'block' },
   { id: 'lights', label: 'Lights', kind: 'light' },
   { id: 'gameplay', label: 'Gameplay', kind: 'object' },
@@ -342,6 +345,15 @@ export class EditorUI {
       const def = BLOCK_TYPES[rec.type] || {};
       this._check(p, 'Emissive', () => (rec.emissive != null), (on) => ed.applyProp('emissive', on ? (rec.color ?? def.color ?? 0x18b6d8) : undefined));
       if (def.wallrun || rec.type === 'runwall') this._check(p, 'Wall-run', () => (rec.wallrun ?? def.wallrun ?? false), (on) => ed.applyProp('wallrun', on));
+      // dynamic-type tunables: breakables/barrels get Health, hazards get Damage/s
+      if (def.destructible || def.barrel) {
+        this._pgrp(p, 'Behavior');
+        this._num(p, 'Health', () => rec.hp ?? def.hp ?? 100, (v) => ed.applyProp('hp', Math.max(1, v)), 5);
+      }
+      if (def.hazard) {
+        this._pgrp(p, 'Behavior');
+        this._num(p, 'Damage/s', () => rec.dps ?? def.dps ?? 30, (v) => ed.applyProp('dps', Math.max(1, v)), 5);
+      }
     } else if (type === 'light') {
       this._pgrp(p, 'Light');
       this._select(p, 'Kind', ['point', 'spot'], () => rec.kind, (v) => ed.applyProp('kind', v));
@@ -352,7 +364,8 @@ export class EditorUI {
       // gameplay object
       this._pgrp(p, rec.kind === 'spawn' ? 'Spawn' : 'Pickup');
       if (rec.kind === 'weapon') {
-        this._select(p, 'Weapon', SPAWN_WEAPONS, () => rec.weapon || SPAWN_WEAPONS[0], (v) => ed.applyProp('weapon', v));
+        // 'random' = a randomized spawner (server rolls a gun from the pool each respawn)
+        this._select(p, 'Weapon', ['random', ...SPAWN_WEAPONS], () => rec.weapon || SPAWN_WEAPONS[0], (v) => ed.applyProp('weapon', v));
         this._num(p, 'Respawn ms', () => rec.respawnMs ?? 8000, (v) => ed.applyProp('respawnMs', Math.max(0, v)), 500);
       } else if (rec.kind === 'health' || rec.kind === 'armor') {
         this._num(p, 'Amount', () => rec.amount ?? 50, (v) => ed.applyProp('amount', Math.max(1, v)), 5);

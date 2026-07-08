@@ -22,7 +22,7 @@ import { AccoladeFeed } from '../ui/AccoladeFeed.js';
 import { INTERP_DELAY_MS, CREW, GRENADE, ACCOLADES } from '../../shared/constants.js';
 import { getMap, mapList, DEFAULT_MAP, registerCustomMap } from '../../shared/maps.js';
 import { buildLiveWorld } from '../../shared/mapsim.js';
-import { POWERUPS } from '../../shared/custommap.js';
+import { POWERUPS, CUSTOM_START_WEAPONS } from '../../shared/custommap.js';
 
 const FOOTSTEPS = ['footstep_01', 'footstep_02', 'footstep_03', 'footstep_04'];
 
@@ -117,6 +117,17 @@ export class ArenaMode {
     if (nm.id !== this.map.id || nm.custom) { this.map = nm; this.mapRenderer.setMap(nm); this.pickupView?.setMap(nm); }
     this.mapDyn = { doors: (mapState && mapState.doors) || {}, destroyed: new Set((mapState && mapState.destroyed) || []) };
     this.ctx.world.colliders = buildLiveWorld(this.map, this.mapDyn, this.conn.serverNow() / 1000);
+    this._applyLoadout();
+  }
+
+  // CUSTOM maps force ARENA pickups: the player is stripped to a starter loadout
+  // (knife + pistol) and must FIND guns as map pickups. Every other map keeps the
+  // full arsenal (weapon wheel). Re-applied on spawn/respawn (map + death).
+  _applyLoadout() {
+    const wm = this.ctx.weapons;
+    if (!wm?.setAcquired) return;
+    if (this.map?.custom) wm.setAcquired(CUSTOM_START_WEAPONS);
+    else wm.setAcquired(wm.defs.map((d) => d.id));
   }
 
   // resolve a player's { name, color } for feed/killcam
@@ -221,6 +232,7 @@ export class ArenaMode {
         this.killCam.stop();
         this.pred.setSpawn({ pos: m.pos, yaw: m.yaw });
         this.ctx.player.camera.yaw = m.yaw;
+        this._applyLoadout(); // custom maps: re-strip to the starter loadout on respawn
       }
     });
 
@@ -229,6 +241,9 @@ export class ArenaMode {
       if (!p) return;
       this.audioBank.play('equip', { volume: 0.9 });
       this._flashPickup(pickupLabel(p));
+      // grant the weapon into the wheel + auto-equip it. (Previously a weapon pickup
+      // updated the server's weaponId but never switched the local gun.)
+      if (p.kind === 'weapon' && p.weapon) { this.ctx.weapons?.grant?.(p.weapon); this.ctx.weapons?.select?.(p.weapon); }
     });
 
     // 2: the server's custom-map list changed (a map was published/removed) — refresh

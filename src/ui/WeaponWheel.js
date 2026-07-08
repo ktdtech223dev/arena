@@ -184,8 +184,12 @@ export class WeaponWheel {
     if (this.visible) return;
     // only from live gameplay — not over another panel or the lock hint
     if (this.ctx.input.uiOpen || !this.ctx.input.locked) return;
-    const defs = this.ctx.weapons?.defs;
-    this._defs = Array.isArray(defs) && defs.length ? defs : FALLBACK_GUNS;
+    const wm = this.ctx.weapons;
+    const defs = wm?.defs;
+    const all = Array.isArray(defs) && defs.length ? defs : FALLBACK_GUNS;
+    // only show OWNED weapons (custom maps start with a stripped loadout)
+    this._defs = wm?.acquired ? all.filter((d) => wm.acquired.has(d.id)) : all;
+    if (!this._defs.length) this._defs = all;
     this._closeOthers();
     this.visible = true;
     this._hover = -1;

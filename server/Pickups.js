@@ -17,7 +17,10 @@ export class Pickups {
     this.list = Array.isArray(map?.pickups) ? map.pickups : [];
     this.pads = Array.isArray(map?.pads) ? map.pads : [];
     this.state = {}; // id -> { alive, respawnAt }
-    for (const pk of this.list) this.state[pk.id] = { alive: true, respawnAt: 0 };
+    for (const pk of this.list) {
+      this.state[pk.id] = { alive: true, respawnAt: 0 };
+      if (Array.isArray(pk.pool) && pk.pool.length) pk.current = rollFrom(pk.pool); // random spawner: initial roll
+    }
   }
 
   // Per-tick: respawn timers, grab detection + grant, jump-pad launches, buff
@@ -28,7 +31,11 @@ export class Pickups {
     for (const pk of this.list) {
       const st = this.state[pk.id];
       if (!st) continue;
-      if (!st.alive) { if (now >= st.respawnAt) st.alive = true; continue; }
+      if (!st.alive) {
+        // re-roll a random spawner when it respawns (server = the only roller)
+        if (now >= st.respawnAt) { st.alive = true; if (Array.isArray(pk.pool) && pk.pool.length) pk.current = rollFrom(pk.pool); }
+        continue;
+      }
       // find the first alive player within reach (horizontal + vertical)
       for (const p of players.values()) {
         if (!p.alive) continue;
@@ -73,10 +80,17 @@ export class Pickups {
     if (typeof def.shield === 'number') { p.shield = def.shield; }
   }
 
-  // Snapshot the alive pickup ids (client renders/hides accordingly).
+  // Snapshot the alive pickups (client renders/hides accordingly). Pooled random
+  // spawners carry their currently-rolled weapon so the marker can reflect it;
+  // everything else is a bare id (the client tolerates both shapes).
   serialize() {
     const alive = [];
-    for (const pk of this.list) { const st = this.state[pk.id]; if (st && st.alive) alive.push(pk.id); }
+    for (const pk of this.list) {
+      const st = this.state[pk.id];
+      if (!st || !st.alive) continue;
+      if (pk.pool && pk.current) alive.push({ id: pk.id, weapon: pk.current });
+      else alive.push(pk.id);
+    }
     return alive;
   }
 
@@ -90,3 +104,7 @@ export class Pickups {
     return null;
   }
 }
+
+// server-authoritative random pick from a pool (the ONLY place a random spawner is
+// rolled, so all clients agree via the snapshot).
+function rollFrom(pool) { return pool[(Math.random() * pool.length) | 0]; }

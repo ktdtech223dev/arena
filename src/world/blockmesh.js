@@ -107,6 +107,20 @@ export function buildBlockMesh(THREE, block, materialCache) {
 function buildShape(THREE, cache, type, def, sx, sy, sz, color, emissive, b) {
   const wallrun = (b.wallrun != null) ? !!b.wallrun : !!def?.wallrun;
 
+  // --- DYNAMIC / interactive types. In PLAY these are drawn + animated by MapEnv
+  //     (CustomEnv skips them); this is the author's editor-side representation. ---
+  if (def?.door) return buildDoor(THREE, cache, sx, sy, sz, color, emissive || 0x7df9ff);
+  if (def?.destructible) return buildDestructible(THREE, cache, sx, sy, sz, color);
+  if (def?.barrel) return buildBarrel(THREE, cache, sx, sy, sz, color, emissive || 0xff4020);
+  if (def?.hazard) return buildHazard(THREE, cache, def, sx, sy, sz, color, emissive);
+
+  // --- PROPS / set pieces with custom shapes ---
+  if (def?.crate) return buildCrate(THREE, cache, sx, sy, sz, color);
+  if (def?.container) return buildContainer(THREE, cache, sx, sy, sz, color);
+  if (def?.beacon) return buildBeacon(THREE, cache, sx, sy, sz, color, emissive || 0xff5a1e);
+  if (def?.fence) return buildFence(THREE, cache, sx, sy, sz, color);
+  if (def?.rock) return buildRock(THREE, cache, sx, sy, sz, color);
+
   // --- ROUND pillar -> cylinder about Y ---
   if (def?.round || type === 'pillar') {
     const r = Math.min(sx, sz) / 2;
@@ -253,6 +267,141 @@ function buildJumppad(THREE, cache, sx, sy, sz, color, emissive) {
   br.position.set(barLen * 0.28, sy / 2 + 0.03, 0); br.rotation.y = -Math.PI / 4;
   root.add(bl); root.add(br);
   return root;
+}
+
+// door: a dark metal slab with glowing seams on each big face (editor view; in
+// play MapEnv draws + slides the real networked door).
+function buildDoor(THREE, cache, sx, sy, sz, color, emissive) {
+  const root = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), litMat(THREE, cache, color || 0x2a3038, 0, 0, 0.65, 0.4));
+  body.castShadow = true; body.receiveShadow = true; root.add(body);
+  const seam = basicMat(THREE, cache, emissive, true);
+  const faceZ = sz / 2 + 0.012;
+  for (const sgn of [-1, 1]) {
+    for (const z of [faceZ, -faceZ]) {
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(0.09, sy * 0.86, 0.04), seam);
+      bar.position.set(sgn * sx * 0.34, 0, z); root.add(bar);
+    }
+  }
+  const chev = new THREE.Mesh(new THREE.BoxGeometry(sx * 0.5, 0.09, 0.04), seam);
+  chev.position.set(0, sy * 0.16, faceZ); root.add(chev);
+  return root;
+}
+
+// destructible: a battered block with faint crack seams so it reads as breakable.
+function buildDestructible(THREE, cache, sx, sy, sz, color) {
+  const root = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), litMat(THREE, cache, color || 0x5a5346, 0, 0, 0.08, 0.92));
+  body.castShadow = true; body.receiveShadow = true; root.add(body);
+  const crackMat = litMat(THREE, cache, 0x201c16, 0, 0, 0, 1);
+  const faceZ = sz / 2 + 0.006;
+  const mk = (w, h, x, y, rot) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.02), crackMat); m.position.set(x, y, faceZ); m.rotation.z = rot; root.add(m); };
+  mk(0.05, sy * 0.66, -sx * 0.1, 0, 0.25);
+  mk(0.05, sx * 0.5, sx * 0.08, sy * 0.14, 1.25);
+  mk(0.05, sy * 0.4, sx * 0.26, -sy * 0.15, -0.35);
+  return root;
+}
+
+// explosive barrel: red drum with two hazard bands (editor + fallback view).
+function buildBarrel(THREE, cache, sx, sy, sz, color, emissive) {
+  const root = new THREE.Group();
+  const r = Math.min(sx, sz) / 2;
+  const drum = new THREE.Mesh(new THREE.CylinderGeometry(r, r, sy, 16), litMat(THREE, cache, color || 0xcc2a1a, emissive, 0.35, 0.5, 0.5));
+  drum.castShadow = true; drum.receiveShadow = true; root.add(drum);
+  const bandMat = basicMat(THREE, cache, 0xffb020, true);
+  for (const yy of [-sy * 0.24, sy * 0.24]) {
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(r * 1.03, r * 1.03, 0.1, 16, 1, true), bandMat);
+    band.position.y = yy; root.add(band);
+  }
+  return root;
+}
+
+// hazard: spikes → a field of cones; lava/toxic/electric → a glowing danger slab.
+function buildHazard(THREE, cache, def, sx, sy, sz, color, emissive) {
+  const root = new THREE.Group();
+  if (def?.hazType === 'spike') {
+    const mat = litMat(THREE, cache, color || 0x9099a0, 0, 0, 0.4, 0.6);
+    const nx = Math.max(2, Math.min(5, Math.round(sx))), nz = Math.max(2, Math.min(5, Math.round(sz)));
+    const sr = Math.min(sx / nx, sz / nz) * 0.35;
+    for (let ix = 0; ix < nx; ix++) for (let iz = 0; iz < nz; iz++) {
+      const spike = new THREE.Mesh(new THREE.ConeGeometry(sr, sy * 1.6, 5), mat);
+      spike.position.set((ix + 0.5) / nx * sx - sx / 2, 0, (iz + 0.5) / nz * sz - sz / 2);
+      spike.castShadow = true; root.add(spike);
+    }
+    return root;
+  }
+  const slab = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), basicMat(THREE, cache, emissive || color || 0xff3a00, true));
+  root.add(slab);
+  return root;
+}
+
+// crate: a wooden box with an X-brace on the front/back faces.
+function buildCrate(THREE, cache, sx, sy, sz, color) {
+  const root = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), litMat(THREE, cache, color || 0x8a6a3a, 0, 0, 0.05, 0.85));
+  body.castShadow = true; body.receiveShadow = true; root.add(body);
+  const frameMat = litMat(THREE, cache, 0x4a3a20, 0, 0, 0, 0.9);
+  const braceLen = Math.hypot(sx, sy) * 0.92;
+  const ang = Math.atan2(sy, sx);
+  for (const sgn of [-1, 1]) {
+    for (const z of [sz / 2 + 0.01, -sz / 2 - 0.01]) {
+      const br = new THREE.Mesh(new THREE.BoxGeometry(braceLen, 0.1, 0.05), frameMat);
+      br.position.set(0, 0, z); br.rotation.z = sgn * ang; root.add(br);
+    }
+  }
+  return root;
+}
+
+// shipping container: a body box with vertical corrugation ridges.
+function buildContainer(THREE, cache, sx, sy, sz, color) {
+  const root = new THREE.Group();
+  const c = color || 0x2f6f8f;
+  const body = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), litMat(THREE, cache, c, 0, 0, 0.4, 0.6));
+  body.castShadow = true; body.receiveShadow = true; root.add(body);
+  const ridge = litMat(THREE, cache, (c & 0xfefefe) >> 1, 0, 0, 0.4, 0.6);
+  const n = 6;
+  for (let i = 1; i < n; i++) {
+    const r1 = new THREE.Mesh(new THREE.BoxGeometry(0.06, sy * 0.96, sz + 0.02), ridge);
+    r1.position.x = (i / n - 0.5) * sx; root.add(r1);
+  }
+  return root;
+}
+
+// beacon: a short post with an emissive lamp on top.
+function buildBeacon(THREE, cache, sx, sy, sz, color, emissive) {
+  const root = new THREE.Group();
+  const r = Math.min(sx, sz);
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.28, r * 0.34, sy * 0.8, 10), litMat(THREE, cache, color || 0x223040, 0, 0, 0.5, 0.5));
+  post.position.y = -sy * 0.1; post.castShadow = true; post.receiveShadow = true; root.add(post);
+  const lamp = new THREE.Mesh(new THREE.SphereGeometry(r * 0.5, 12, 10), basicMat(THREE, cache, emissive, true));
+  lamp.position.y = sy * 0.4; root.add(lamp);
+  return root;
+}
+
+// railing/fence: two horizontal rails on evenly-spaced posts.
+function buildFence(THREE, cache, sx, sy, sz, color) {
+  const root = new THREE.Group();
+  const mat = litMat(THREE, cache, color || 0x3a4650, 0, 0, 0.5, 0.5);
+  const depth = Math.max(sz, 0.1);
+  for (const yy of [sy * 0.32, -sy * 0.2]) {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(sx, 0.08, depth), mat);
+    rail.position.y = yy; rail.castShadow = true; root.add(rail);
+  }
+  const n = Math.max(2, Math.round(sx / 2) + 1);
+  for (let i = 0; i < n; i++) {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.1, sy, depth), mat);
+    post.position.x = (n === 1 ? 0 : (i / (n - 1) - 0.5) * sx); post.castShadow = true; root.add(post);
+  }
+  return root;
+}
+
+// rock: a lumpy boulder (low-poly icosahedron scaled to the block extents).
+function buildRock(THREE, cache, sx, sy, sz, color) {
+  const geo = new THREE.IcosahedronGeometry(0.5, 0);
+  geo.scale(sx, sy, sz);
+  const m = new THREE.Mesh(geo, litMat(THREE, cache, color || 0x555a60, 0, 0, 0.05, 0.95));
+  m.castShadow = true; m.receiveShadow = true;
+  return m;
 }
 
 // ---------------------------------------------------------------------------
