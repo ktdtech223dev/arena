@@ -32,6 +32,16 @@ export const data = normalizeMap({
     ...ring(0, 0, 0, 0.6, 17, 21),
     // ══ INNER RING walkway (base tier, y0.6, deck 4 m wide, R8..12) ═══════════
     ...ring(0, 0, 0, 0.6, 8, 12),
+    // ── INNER-RING DIAGONAL CORNER INFILL — the round torus VISUAL (r8..12) dips
+    //    INSIDE the square 4-bar collider (inner half-8) at the 4 diagonals, so a
+    //    player following the round inner deck at a corner stepped onto phantom
+    //    floor and dropped into the reactor core. Fill each square-hole corner up
+    //    to the ring's inner edge (these render as 'deck' too → visible, walkable),
+    //    matching the round deck so there's no phantom floor over the void. ───────
+    box(5.4, 0, 5.4, 8, 0.6, 8),      // NE inner corner
+    box(-8, 0, 5.4, -5.4, 0.6, 8),    // NW inner corner
+    box(5.4, 0, -8, 8, 0.6, -5.4),    // SE inner corner
+    box(-8, 0, -8, -5.4, 0.6, -5.4),  // SW inner corner
     // ══ UPPER GANTRY RING (high tier, y7, deck 3 m wide, R13..16) ═════════════
     ...ring(0, 0, 6.4, 7, 13, 16),
 

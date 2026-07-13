@@ -87,6 +87,7 @@ export const CUSTOM_START_WEAPONS = ['knife', 'pistol'];
 // GAMEPLAY OBJECT kinds
 export const OBJECT_KINDS = {
   weapon:  { label: 'Weapon Spawn', color: 0xffd166, respawnMs: 8000 },
+  ammo:    { label: 'Ammo',         color: 0xffcf6a, respawnMs: 15000 },
   health:  { label: 'Health',       color: 0x51e898, respawnMs: 12000, amount: 50 },
   armor:   { label: 'Armor',        color: 0x7df9ff, respawnMs: 20000, amount: 50 },
   powerup: { label: 'Power-up',     color: 0xb15bff, respawnMs: 30000 },
@@ -229,7 +230,7 @@ export function customToMapData(custom) {
   // gameplay objects → spawns + pickups
   for (const o of (c.objects || [])) {
     if (o.kind === 'spawn') spawns.push({ pos: { x: o.x || 0, y: o.y || 0, z: o.z || 0 }, yaw: o.yaw || 0, team: o.team });
-    else if (o.kind === 'weapon' || o.kind === 'health' || o.kind === 'armor' || o.kind === 'powerup') {
+    else if (o.kind === 'weapon' || o.kind === 'ammo' || o.kind === 'health' || o.kind === 'armor' || o.kind === 'powerup') {
       // a weapon spawn set to 'random' becomes a POOLED spawner: the server rolls a
       // random gun from `pool` on each (re)spawn (authoritative). `weapon` stays
       // undefined so the roll is the source of truth.

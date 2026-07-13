@@ -17,7 +17,7 @@
 import * as THREE from 'three';
 
 const KIND_COLOR = {
-  weapon: 0xffd166, health: 0x51e898, armor: 0x7df9ff, powerup: 0xb15bff,
+  weapon: 0xffd166, ammo: 0xffcf6a, health: 0x51e898, armor: 0x7df9ff, powerup: 0xb15bff,
 };
 
 // per-weapon tint for a RANDOM spawner marker so it reflects the currently-rolled
@@ -60,6 +60,7 @@ class PickupMarker {
     if (this.kind === 'health') this._buildCross(0x51e898);
     else if (this.kind === 'armor') this._buildShield(0x7df9ff);
     else if (this.kind === 'powerup') this._buildOrb(0xb15bff);
+    else if (this.kind === 'ammo') this._buildAmmo(0xffcf6a);
     else this._buildDiamond(c); // weapon (+ any unknown kind)
 
     // a soft ground glow disc under every marker so it pops off the floor
@@ -103,6 +104,17 @@ class PickupMarker {
     const halo = this._addMat(new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }), true);
     const ring = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.04, 8, 24), halo);
     plate.add(ring); this._geoTrack(ring);
+  }
+
+  _buildAmmo(c) {
+    // a small ammo crate: dark box with glowing magazine stripes on the lid + a halo.
+    const solid = this._addMat(new THREE.MeshStandardMaterial({ color: 0x4a3a1a, emissive: new THREE.Color(c), emissiveIntensity: 0.35, metalness: 0.5, roughness: 0.5 }), false);
+    const box = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.3, 0.32), solid);
+    this.spinNode = box; this.group.add(box); this._geoTrack(box);
+    const stripeMat = this._addMat(new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }), true);
+    for (const sx of [-0.1, 0, 0.1]) { const s = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.02, 0.34), stripeMat); s.position.set(sx, 0.16, 0); box.add(s); this._geoTrack(s); }
+    const halo = this._addMat(new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }), true);
+    const h = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.44, 0.46), halo); box.add(h); this._geoTrack(h);
   }
 
   _buildOrb(c) {

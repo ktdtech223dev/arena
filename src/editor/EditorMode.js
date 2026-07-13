@@ -579,6 +579,7 @@ export class EditorMode {
     const rec = { __uid: uid(), kind, x: pos.x, y: pos.y, z: pos.z };
     if (kind === 'spawn') { rec.yaw = 0; }
     else if (kind === 'weapon') { rec.weapon = SPAWN_WEAPONS[0]; rec.respawnMs = def.respawnMs; }
+    else if (kind === 'ammo') { rec.respawnMs = def.respawnMs; }
     else if (kind === 'health' || kind === 'armor') { rec.amount = def.amount; rec.respawnMs = def.respawnMs; }
     else if (kind === 'powerup') { rec.powerup = 'speed'; rec.respawnMs = def.respawnMs; }
     this.map.objects.push(rec);

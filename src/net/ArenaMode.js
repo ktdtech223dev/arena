@@ -260,6 +260,8 @@ export class ArenaMode {
       // grant the weapon into the wheel + auto-equip it. (Previously a weapon pickup
       // updated the server's weaponId but never switched the local gun.)
       if (p.kind === 'weapon' && p.weapon) { this.ctx.weapons?.grant?.(p.weapon); this.ctx.weapons?.select?.(p.weapon); }
+      // ammo pickup: refill every weapon's reserve (ammo is client-tracked).
+      if (p.kind === 'ammo') this.ctx.weapons?.resupply?.();
     });
 
     // 2: the server's custom-map list changed (a map was published/removed) — refresh

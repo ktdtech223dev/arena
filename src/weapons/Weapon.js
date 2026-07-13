@@ -734,6 +734,9 @@ export class WeaponManager {
   /** Grant a weapon id into the owned set (from a pickup). */
   grant(id) { if (this.weapons.has(id)) this.acquired.add(id); }
 
+  /** Ammo pickup — top every weapon's reserve back up to its def maximum. */
+  resupply() { for (const w of this.weapons.values()) { if (w.def.reserve) w.reserveAmmo = w.def.reserve; } }
+
   /** Replace the owned set (a loadout change). Keeps `current` valid. */
   setAcquired(ids) {
     this.acquired = new Set((Array.isArray(ids) ? ids : []).filter((id) => this.weapons.has(id)));

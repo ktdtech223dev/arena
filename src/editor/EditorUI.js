@@ -308,7 +308,7 @@ export class EditorUI {
     }
   }
 
-  _objGlyph(id) { return { weapon: '✦', health: '✚', armor: '⛨', powerup: '★', spawn: '➤' }[id] || '●'; }
+  _objGlyph(id) { return { weapon: '✦', ammo: '▤', health: '✚', armor: '⛨', powerup: '★', spawn: '➤' }[id] || '●'; }
 
   refreshPalette() { this._renderItems(); }
 
@@ -367,6 +367,8 @@ export class EditorUI {
         // 'random' = a randomized spawner (server rolls a gun from the pool each respawn)
         this._select(p, 'Weapon', ['random', ...SPAWN_WEAPONS], () => rec.weapon || SPAWN_WEAPONS[0], (v) => ed.applyProp('weapon', v));
         this._num(p, 'Respawn ms', () => rec.respawnMs ?? 8000, (v) => ed.applyProp('respawnMs', Math.max(0, v)), 500);
+      } else if (rec.kind === 'ammo') {
+        this._num(p, 'Respawn ms', () => rec.respawnMs ?? 15000, (v) => ed.applyProp('respawnMs', Math.max(0, v)), 500);
       } else if (rec.kind === 'health' || rec.kind === 'armor') {
         this._num(p, 'Amount', () => rec.amount ?? 50, (v) => ed.applyProp('amount', Math.max(1, v)), 5);
         this._num(p, 'Respawn ms', () => rec.respawnMs ?? 12000, (v) => ed.applyProp('respawnMs', Math.max(0, v)), 500);
