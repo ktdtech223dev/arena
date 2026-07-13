@@ -95,6 +95,8 @@ export const WEAPON_COMBAT = {
   // 1B new guns (mirror weapons-data.js): DMR = mid-long precision; revolver = slow hand-cannon.
   dmr:     { damage: 62,  headMult: 1.9, falloff: { start: 40,  end: 120, minMult: 0.55 } },
   revolver:{ damage: 78,  headMult: 2.0, falloff: { start: 20,  end: 55,  minMult: 0.4 } },
+  // burst rifle: each of the 3 rounds resolves as a normal hitscan shot server-side.
+  burst:   { damage: 30,  headMult: 1.75, falloff: { start: 35, end: 95,  minMult: 0.6 } },
   // Projectile weapons: `projectile` names a PROJECTILES entry — the server
   // spawns a networked projectile instead of resolving hitscan. damage/headMult
   // here are unused for these (the projectile carries its own damage).

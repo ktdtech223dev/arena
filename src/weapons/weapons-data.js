@@ -407,6 +407,47 @@ export const WEAPONS = [
   },
 
   // -------------------------------------------------------------------------
+  // BURST RIFLE (slot 12 → weapon wheel / mouse-cycle; the 1–9 row is full).
+  // Hitscan; fires a tight 3-round BURST per trigger pull at a fast intra-burst
+  // cadence, with a slower refire delay BETWEEN bursts. Higher per-shot damage
+  // than the AR and near-laser in ADS, but you commit to the burst — a precise
+  // mid-range rifle that rewards tapping. Uses the FAMAS-derived 'burst_fire'.
+  // -------------------------------------------------------------------------
+  {
+    id: 'burst',
+    name: 'BR-3 TRIDENT',
+    slot: 12,
+    type: 'hitscan',
+    damage: 30,
+    auto: false,
+    burst: 3,          // rounds fired per trigger pull
+    burstRpm: 900,     // fast cadence WITHIN a burst
+    rpm: 260,          // cadence BETWEEN bursts (post-burst refire delay)
+    mag: 30,
+    reserve: 150,
+    falloff: { start: 35, end: 95, minMult: 0.6 },
+    spread: { base: 0.28, move: 0.7, air: 1.4, ads: 0.06, bloomPerShot: 0.14, bloomMax: 1.8, recover: 8, adsMove: 0.4 },
+    // short, snappy 3-shot climb (loops per burst)
+    recoil: {
+      kickPitch: 1.0, kickYaw: 1.0,
+      pattern: [[1.4, 0.06], [1.5, -0.12], [1.45, 0.14]],
+      patternLoop: 3,
+      recover: 12,
+      adsMult: 0.8,
+    },
+    reload: {
+      phases: [{ name: 'magout', t: 0.5 }, { name: 'magin', t: 0.6 }],
+      emptyPhases: [{ name: 'magout', t: 0.5 }, { name: 'magin', t: 0.6 }, { name: 'rack', t: 0.45 }, { name: 'bolt', t: 0.35 }],
+    },
+    equipT: 0.32, holsterT: 0.26, adsT: 0.18, adsFovScale: 0.86,
+    sounds: { fire: 'burst_fire' },
+    tracer: { color: 0xfff0a8, width: 0.035 },
+    shell: { kind: 'rifle' },
+    feel: { hitstopMs: 26, hitstopKillMs: 72, shake: 0.28, flash: 0.7 },
+    weight: 2.1,
+  },
+
+  // -------------------------------------------------------------------------
   // KNIFE (slot 10) — dedicated MELEE weapon (V / weapon-wheel). §1C. NOT a
   // quick-melee: you switch to it and fight with it. LMB = fast light swing
   // (short reach), RMB = heavy LUNGE (longer reach, big damage). No ADS / ammo /

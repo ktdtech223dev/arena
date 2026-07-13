@@ -66,6 +66,7 @@ function drawGlyph(g, id, x, y, color) {
       g.fillRect(-4, 1, 12, 5);       // pump
       break;
     case 'ar':
+    case 'burst':
       g.fillRect(-23, -3, 7, 5);      // stock
       g.fillRect(-16, -6, 28, 8);     // body
       g.fillRect(12, -4, 11, 3);      // barrel

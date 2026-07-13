@@ -45,6 +45,7 @@ export class Weapon {
     this._reload = null; // live reload FSM data
     this._reloadQueued = false;
     this._holsterDone = false; // polled by the manager to complete a swap
+    this._burstLeft = 0; // rounds remaining in an in-progress burst (burst rifle)
   }
 
   isAds() {
@@ -63,6 +64,7 @@ export class Weapon {
     this._bloom = 0;
     this.ads = 0;
     this._adsOn = false;
+    this._burstLeft = 0; // never carry an unfinished burst across a weapon switch
     this.ctx.events.emit('weapon:equip', { def: this.def });
     this.ctx.audio.play('equip', { volume: 0.8 });
   }
@@ -179,14 +181,33 @@ export class Weapon {
       (this.state === 'idle' || this.state === 'firing' || this.state === 'inspecting') &&
       !this._pendingCycle;
     if (canAct && this._cooldown <= 0) {
-      // semi-auto needs a fresh click (consume the edge); auto just holds.
-      // consumePressed is only called when actually ready → un-consumed clicks
-      // survive until endFrame, giving natural sub-frame shot buffering.
-      const trig = this.def.auto ? input.down('fire') : input.consumePressed('fire');
-      if (trig) {
-        if (this.state === 'inspecting') this.state = 'idle';
-        if (this.magAmmo > 0) this._fire();
-        else this._dryFire();
+      if (this.def.burst) {
+        // BURST: a fresh trigger pull commits to `def.burst` rounds fired at
+        // `burstRpm` cadence; `rpm` is the slower between-bursts refire delay.
+        if (this._burstLeft <= 0 && input.consumePressed('fire')) {
+          if (this.magAmmo > 0) this._burstLeft = this.def.burst;
+          else this._dryFire();
+        }
+        if (this._burstLeft > 0) {
+          if (this.state === 'inspecting') this.state = 'idle';
+          if (this.magAmmo > 0) {
+            this._fire();                 // sets _cooldown = 60/rpm (post-burst delay)
+            this._burstLeft--;
+            if (this._burstLeft > 0) this._cooldown = 60 / (this.def.burstRpm || 900); // fast intra-burst
+          } else {
+            this._burstLeft = 0;          // ran dry mid-burst
+          }
+        }
+      } else {
+        // semi-auto needs a fresh click (consume the edge); auto just holds.
+        // consumePressed is only called when actually ready → un-consumed clicks
+        // survive until endFrame, giving natural sub-frame shot buffering.
+        const trig = this.def.auto ? input.down('fire') : input.consumePressed('fire');
+        if (trig) {
+          if (this.state === 'inspecting') this.state = 'idle';
+          if (this.magAmmo > 0) this._fire();
+          else this._dryFire();
+        }
       }
     }
 
@@ -531,6 +552,7 @@ export class Weapon {
     const def = this.def;
     const empty = this.magAmmo === 0;
     const perShell = !!def.reload.perShell;
+    this._burstLeft = 0; // reloading cancels any unfinished burst
     this.state = 'reloading';
     this._reload = {
       empty,

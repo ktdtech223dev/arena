@@ -901,6 +901,7 @@ const BUILDERS = {
   sawblade: buildSawblade,
   dmr: buildDmr,
   revolver: buildRevolver,
+  burst: buildAr, // shares the AR chassis for now (distinct stats/fire/sound)
   knife: buildKnife,
   bat: buildBat,
 };
