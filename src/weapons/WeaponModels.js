@@ -828,7 +828,9 @@ function buildKnife() {
     parts,
     meta: {
       sightY: 0.02,
-      hip: { pos: [0.2, -0.19, -0.34], rot: [0.1, 0.35, 0.25] },
+      // held BLADE-UP (vertical), not pointed forward: pitch the model up ~75° so
+      // the −Z blade reads as an upright ready stance, tucked to the lower-right.
+      hip: { pos: [0.26, -0.26, -0.4], rot: [1.32, 0.28, 0.12] },
       adsZ: -0.24,
       gripR: { pos: [0, 0, 0.04], rot: [0.1, 0, 0] },
       gripL: { pos: [-0.04, -0.05, -0.12], rot: [0.2, 0.3, 0.4] },
@@ -878,7 +880,9 @@ function buildBat() {
     parts,
     meta: {
       sightY: 0.03,
-      hip: { pos: [0.22, -0.22, -0.4], rot: [0.05, 0.28, 0.18] },
+      // held HEAD-UP (vertical), resting on the shoulder rather than pointed
+      // forward: pitch the model up ~65° so the bat head rises out of frame.
+      hip: { pos: [0.28, -0.3, -0.42], rot: [1.15, 0.22, 0.1] },
       adsZ: -0.3,
       gripR: { pos: [0, 0, 0.06], rot: [0.12, 0, 0] },
       gripL: { pos: [0, 0, -0.02], rot: [0.15, 0, 0] },

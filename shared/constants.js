@@ -93,7 +93,7 @@ export const WEAPON_COMBAT = {
   ar:      { damage: 24,  headMult: 1.7, falloff: { start: 30,  end: 80,  minMult: 0.6 } },
   sniper:  { damage: 140, headMult: 1.5, falloff: { start: 120, end: 300, minMult: 0.8 } },
   // 1B new guns (mirror weapons-data.js): DMR = mid-long precision; revolver = slow hand-cannon.
-  dmr:     { damage: 62,  headMult: 1.9, falloff: { start: 40,  end: 130, minMult: 0.65 } },
+  dmr:     { damage: 62,  headMult: 1.9, falloff: { start: 40,  end: 120, minMult: 0.55 } },
   revolver:{ damage: 78,  headMult: 2.0, falloff: { start: 20,  end: 55,  minMult: 0.4 } },
   // Projectile weapons: `projectile` names a PROJECTILES entry — the server
   // spawns a networked projectile instead of resolving hitscan. damage/headMult

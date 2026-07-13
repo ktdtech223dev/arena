@@ -221,6 +221,7 @@ export class ArenaMode {
       });
       if (m.id === conn.id) {
         this._dead = true;
+        this.ctx.input.setSuppressed(true); // no shooting/moving while dead + in the killcam
         const killerRP = (!suicide) ? this.interp.remotes.get(m.by) : null;
         this.killCam.start(killerRP, killer.name, m.respawnInMs || 2500);
       }
@@ -229,6 +230,7 @@ export class ArenaMode {
     conn.on('respawn', (m) => {
       if (m.id === conn.id) {
         this._dead = false;
+        this.ctx.input.setSuppressed(false); // alive again — restore controls
         this.killCam.stop();
         this.pred.setSpawn({ pos: m.pos, yaw: m.yaw });
         this.ctx.player.camera.yaw = m.yaw;

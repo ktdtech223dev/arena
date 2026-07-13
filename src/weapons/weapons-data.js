@@ -333,8 +333,9 @@ export const WEAPONS = [
     rpm: 200,          // ~333 ms/shot: fast if you pace clicks
     mag: 18,
     reserve: 90,
-    // MILD falloff — the point of the gun is that it stays lethal at distance.
-    falloff: { start: 40, end: 130, minMult: 0.65 },
+    // MILD falloff — stays lethal at distance, but not a free long-range laser:
+    // trimmed the far floor (0.65→0.55) + pulled `end` in so extreme range bites.
+    falloff: { start: 40, end: 120, minMult: 0.55 },
     // Precise when still/ADS (base + ads low); moving + airborne + spray punished.
     spread: { base: 0.28, move: 0.9, air: 2.2, ads: 0.05, bloomPerShot: 0.22, bloomMax: 2.8, recover: 6, adsMove: 0.55 },
     // Moderate vertical kick that RESETS between shots (high recover) so a paced

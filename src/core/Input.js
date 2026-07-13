@@ -42,6 +42,7 @@ export class Input {
     this._down = new Set();      // actions currently held
     this._pressed = new Set();   // actions pressed this frame (cleared in endFrame)
     this._released = new Set();  // actions released this frame
+    this._suppressed = false;    // when true, gameplay actions read false (e.g. dead / killcam) — pointer lock is untouched
     this._look = { dx: 0, dy: 0 };
     this._wheelDelta = 0;
     this._ui = new Set();        // open UI panel ids
@@ -53,22 +54,30 @@ export class Input {
 
   // ---- public API --------------------------------------------------------
 
-  /** Is this action held right now? Always false while a UI panel is open. */
+  /** Is this action held right now? Always false while a UI panel is open or suppressed. */
   down(action) {
-    return this._ui.size === 0 && this._down.has(action);
+    return this._ui.size === 0 && !this._suppressed && this._down.has(action);
   }
 
   /** Was this action pressed this frame? (peek — does not consume) */
   pressed(action) {
-    return this._ui.size === 0 && this._pressed.has(action);
+    return this._ui.size === 0 && !this._suppressed && this._pressed.has(action);
   }
 
   /** Was this action pressed this frame? Consumes the edge. */
   consumePressed(action) {
-    if (this._ui.size > 0) return false;
+    if (this._ui.size > 0 || this._suppressed) return false;
     const had = this._pressed.has(action);
     this._pressed.delete(action);
     return had;
+  }
+
+  /** Freeze/unfreeze gameplay actions (fire/melee/move/etc.) WITHOUT releasing
+   *  pointer lock — used while the local player is dead / in the killcam so a held
+   *  or spammed trigger can't keep the gun shooting. Clears buffered edges. */
+  setSuppressed(v) {
+    this._suppressed = !!v;
+    if (v) this._pressed.clear();
   }
 
   released(action) {
