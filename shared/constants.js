@@ -101,6 +101,9 @@ export const WEAPON_COMBAT = {
   // grenade (arc + fuse + splash from GRENADE/PROJECTILES.grenade).
   arclance:      { damage: 13, headMult: 1.5, falloff: { start: 25, end: 70, minMult: 0.5 } },
   arclance_alt:  { damage: 0,  headMult: 1,   falloff: null, projectile: 'grenade' },
+  // BREACHER (dual-mode): primary = 8-pellet shotgun; alt 'breacher_alt' = precise slug.
+  breacher:      { damage: 11, headMult: 1.4, falloff: { start: 8,  end: 22,  minMult: 0.25 }, pellets: 8, spreadDeg: 3.0 },
+  breacher_alt:  { damage: 60, headMult: 1.8, falloff: { start: 40, end: 130, minMult: 0.6 } },
   // Projectile weapons: `projectile` names a PROJECTILES entry — the server
   // spawns a networked projectile instead of resolving hitscan. damage/headMult
   // here are unused for these (the projectile carries its own damage).

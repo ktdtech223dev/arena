@@ -60,6 +60,7 @@ function drawGlyph(g, id, x, y, color) {
       g.fillRect(-11, 3, 4, 6);       // grip
       break;
     case 'shotgun':
+    case 'breacher':
       g.fillRect(-24, -4, 10, 7);     // stock
       g.fillRect(-14, -5, 32, 6);     // receiver + barrel
       g.fillRect(18, -4, 6, 4);       // muzzle

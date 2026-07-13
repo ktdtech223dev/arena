@@ -486,6 +486,47 @@ export const WEAPONS = [
   },
 
   // -------------------------------------------------------------------------
+  // BREACHER (slot 14 → wheel/scroll) — DUAL-MODE combat shotgun. LMB = a wide
+  // PELLET blast (close-range shredder). RMB = ALT: a single precise SLUG (hitscan,
+  // high damage, reaches). Spread up close, or thread a slug at range.
+  // -------------------------------------------------------------------------
+  {
+    id: 'breacher',
+    name: 'BREACHER',
+    slot: 14,
+    type: 'pellets',
+    dualMode: true,
+    damage: 11,           // per pellet
+    pellets: 8,
+    auto: false,
+    rpm: 80,
+    mag: 8,
+    reserve: 40,
+    falloff: { start: 8, end: 22, minMult: 0.25 },
+    spread: { base: 3.0, move: 0.7, air: 1.0, ads: 3.0, bloomPerShot: 0.12, bloomMax: 1.0, recover: 5, adsMove: 0.5 },
+    recoil: { kickPitch: 4.5, kickYaw: 0.6, recover: 9, adsMult: 1 },
+    reload: { phases: [{ name: 'magout', t: 0.5 }, { name: 'magin', t: 0.6 }] },
+    equipT: 0.36, holsterT: 0.28, adsT: 0.2, adsFovScale: 1,
+    sounds: { fire: 'shotgun_fire' },
+    tracer: { color: 0xffa04d, width: 0.024 },
+    shell: { kind: 'shell' },
+    feel: { hitstopMs: 80, hitstopKillMs: 130, shake: 0.6, flash: 0.9 },
+    weight: 2.5,
+    // ALT: precise long-range slug — resolves server-side as 'breacher_alt' (hitscan).
+    alt: {
+      combatId: 'breacher_alt',
+      type: 'hitscan',
+      rpm: 55,
+      ammoCost: 2,
+      damage: 60,
+      falloff: { start: 40, end: 130, minMult: 0.6 },
+      spread: 0.25,
+      sound: 'sniper_fire',
+      tracer: { color: 0xffe0a0, width: 0.05 },
+    },
+  },
+
+  // -------------------------------------------------------------------------
   // KNIFE (slot 10) — dedicated MELEE weapon (V / weapon-wheel). §1C. NOT a
   // quick-melee: you switch to it and fight with it. LMB = fast light swing
   // (short reach), RMB = heavy LUNGE (longer reach, big damage). No ADS / ammo /
