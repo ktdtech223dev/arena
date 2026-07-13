@@ -67,7 +67,13 @@ export class Game {
     this.io.to(p.id).emit('pickup', { id: pk.id, kind: pk.kind, weapon, powerup: pk.powerup });
   }
 
-  spawnProjectile(player, projKind, origin, dir) { if (player.alive) this.projectiles.spawnFromWeapon(projKind, player, origin, dir); }
+  spawnProjectile(player, projKind, origin, dir) {
+    if (!player.alive) return;
+    // 'grenade' projectiles (e.g. the Arc Lance bomb-lob alt) arc + fuse — route
+    // through spawnGrenade so they lob, not fly straight.
+    if (projKind === 'grenade') this.projectiles.spawnGrenade(player, origin, dir);
+    else this.projectiles.spawnFromWeapon(projKind, player, origin, dir);
+  }
   throwGrenade(player, origin, dir) { if (player.alive) this.projectiles.spawnGrenade(player, origin, dir); }
 
   // ONE shared player-damage path (hitscan + projectiles + splash + hazards).

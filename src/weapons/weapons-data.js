@@ -448,6 +448,44 @@ export const WEAPONS = [
   },
 
   // -------------------------------------------------------------------------
+  // ARC LANCE (slot 13 → wheel/scroll) — DUAL-MODE energy weapon. LMB = a sustained
+  // hitscan BEAM (fast, precise, low per-tick damage). RMB = ALT: lob an arcing
+  // plasma BOMB (a server grenade — arcs + explodes for AoE). ADS is disabled (RMB
+  // is the alt fire). The alt resolves server-side as the virtual weapon 'arclance_alt'.
+  // -------------------------------------------------------------------------
+  {
+    id: 'arclance',
+    name: 'ARC LANCE',
+    slot: 13,
+    type: 'hitscan',
+    dualMode: true,          // RMB = alt fire (no ADS)
+    damage: 13,
+    auto: true,
+    rpm: 450,                // rapid beam ticks
+    mag: 90,
+    reserve: 270,
+    falloff: { start: 25, end: 70, minMult: 0.5 },
+    spread: { base: 0.14, move: 0.5, air: 1.0, ads: 0.14, bloomPerShot: 0.03, bloomMax: 0.7, recover: 12, adsMove: 0.3 },
+    recoil: { kickPitch: 0.35, kickYaw: 0.2, recover: 16, adsMult: 1 },
+    reload: { phases: [{ name: 'magout', t: 0.55 }, { name: 'magin', t: 0.65 }] },
+    equipT: 0.34, holsterT: 0.28, adsT: 0.18, adsFovScale: 1,
+    sounds: { fire: 'smg_fire' },   // beam tick (v1 — a dedicated hum can come later)
+    tracer: { color: 0x7df9ff, width: 0.05 },
+    shell: { kind: 'none' },
+    feel: { hitstopMs: 12, hitstopKillMs: 50, shake: 0.14, flash: 0.5 },
+    weight: 2.2,
+    // ALT: lobbed plasma bomb — resolves server-side as 'arclance_alt' (a grenade).
+    alt: {
+      combatId: 'arclance_alt',
+      type: 'projectile',    // server spawns the grenade; ProjectileView renders it
+      rpm: 70,               // ~0.85s between lobs
+      ammoCost: 10,          // a bomb costs a chunk of the beam battery
+      spread: 0.5,
+      sound: 'exotic_fire',  // heavy thump
+    },
+  },
+
+  // -------------------------------------------------------------------------
   // KNIFE (slot 10) — dedicated MELEE weapon (V / weapon-wheel). §1C. NOT a
   // quick-melee: you switch to it and fight with it. LMB = fast light swing
   // (short reach), RMB = heavy LUNGE (longer reach, big damage). No ADS / ammo /

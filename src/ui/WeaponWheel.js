@@ -86,6 +86,7 @@ function drawGlyph(g, id, x, y, color) {
       g.fillRect(6, -8, 2, 3);        // scope cap
       g.fillRect(-2, 1, 5, 8);        // mag
       break;
+    case 'arclance':
     case 'exotic':
       g.fillRect(-20, -6, 34, 10);    // launcher tube
       g.fillRect(14, -7, 6, 12);      // muzzle mouth

@@ -46,6 +46,7 @@ export class Weapon {
     this._reloadQueued = false;
     this._holsterDone = false; // polled by the manager to complete a swap
     this._burstLeft = 0; // rounds remaining in an in-progress burst (burst rifle)
+    this._altCooldown = 0; // s until the ALT fire (dual-mode weapons) is ready again
   }
 
   isAds() {
@@ -94,6 +95,7 @@ export class Weapon {
     const P = this.manager.params;
 
     this._cooldown = Math.max(0, this._cooldown - dt);
+    this._altCooldown = Math.max(0, this._altCooldown - dt);
     this._dryCooldown = Math.max(0, this._dryCooldown - dt);
     this._bloom = Math.max(0, this._bloom - this.def.spread.recover * dt);
     if (!input.down('fire')) this._dryLatch = false;
@@ -211,6 +213,17 @@ export class Weapon {
       }
     }
 
+    // ---- DUAL-MODE alt fire (RMB): replaces ADS on these weapons ----
+    if (this.def.dualMode && this.def.alt && this._altCooldown <= 0 &&
+        (this.state === 'idle' || this.state === 'firing') && !this._pendingCycle) {
+      const trig = this.def.alt.auto ? input.down('ads') : input.consumePressed('ads');
+      if (trig) {
+        const cost = this.def.alt.ammoCost || 1;
+        if (this.magAmmo >= cost) this._fireAlt();
+        else this._dryFire();
+      }
+    }
+
     // ---- inspect (T) ----
     if (input.consumePressed('inspect') && this.state === 'idle' && !this._adsOn && this.ads < 0.1) {
       this.state = 'inspecting';
@@ -296,6 +309,29 @@ export class Weapon {
       this._pendingCycle = true;
       this._cycleDelay = this.manager.params.cycleDelay;
     }
+  }
+
+  // ---- dual-mode ALT fire (RMB) --------------------------------------------
+  // hitscan/pellet alts resolve LOCALLY for feel (server-authoritative via the
+  // virtual `alt.combatId` weapon id in the fire packet); PROJECTILE alts are
+  // spawned server-side and rendered by ProjectileView, so there's no local sim.
+  _fireAlt() {
+    const ctx = this.ctx, def = this.def, alt = def.alt;
+    this.magAmmo -= (alt.ammoCost || 1);
+    this._altCooldown = 60 / (alt.rpm || 120);
+    this.state = 'firing';
+    const origin = ctx.camera.getWorldPosition(_camPos).clone();
+    const baseDir = ctx.camera.getWorldDirection(_camDir).clone();
+    const from = this._muzzleWorld(origin);
+    const spreadDeg = alt.spread ?? 0.3;
+    if (alt.type === 'pellets' || alt.type === 'hitscan') {
+      const cdef = { ...def, damage: alt.damage ?? def.damage, falloff: alt.falloff ?? def.falloff, tracer: alt.tracer ?? def.tracer };
+      if (alt.type === 'pellets') for (const d of pelletDirs(baseDir, spreadDeg, alt.pellets || 8)) fireHitscanRay(ctx, cdef, origin, d, from);
+      else fireHitscanRay(ctx, cdef, origin, sampleConeDir(baseDir, spreadDeg), from);
+    }
+    (ctx.audioBank || ctx.audio).play(alt.sound || def.sounds.fire, { volume: 1, rate: 0.95 + Math.random() * 0.08 });
+    this.manager.recoil.onFire(def, false);
+    ctx.events.emit('weapon:fired', { def, origin, dir: baseDir, ads: 0, alt: true });
   }
 
   // ---- melee (knife/bat, §1C) ----------------------------------------------
@@ -528,6 +564,12 @@ export class Weapon {
 
   _updateAds(dt) {
     const def = this.def;
+    // dual-mode weapons use RMB for the ALT fire, not ADS — keep them hip-fire only.
+    if (def.dualMode) {
+      if (this._adsOn) { this._adsOn = false; this.ctx.player?.camera?.setAds?.(false, 1); }
+      this.ads = 0;
+      return;
+    }
     const allow = this.state === 'idle' || this.state === 'firing' || this.state === 'cycling';
     const want = allow && this.ctx.input.down('ads');
     if (want !== this._adsOn) {

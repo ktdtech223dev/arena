@@ -287,13 +287,19 @@ export class ArenaMode {
       // MELEE swings are sent via sendMelee (weapon:melee below), NOT as a hitscan
       // 'fire' — bail here so a swing doesn't also resolve as a gun shot. §1C.
       if (e.melee) return;
+      // dual-mode ALT shots resolve as the virtual weapon `def.alt.combatId`; send
+      // that as weaponId (damage/projectile) but keep viewId on the base gun so
+      // remotes still render the right weapon.
+      const baseId = e.def?.id || this.ctx.weapons?.current?.def?.id || 'ar';
+      const altId = (e.alt && e.def?.alt?.combatId) ? e.def.alt.combatId : null;
       this.conn.sendFire({
         seq: this.pred.seq,
         // lag comp: we render remotes INTERP_DELAY_MS in the past, so the shot
         // must be resolved against their position at the time we actually saw
         // them — the server rewinds targets to exactly this timestamp.
         fireTime: this.conn.serverNow() - INTERP_DELAY_MS,
-        weaponId: this.ctx.weapons?.current?.def?.id || 'ar',
+        weaponId: altId || baseId,
+        viewId: altId ? baseId : undefined,
         origin: { x: e.origin.x, y: e.origin.y, z: e.origin.z },
         dir: { x: e.dir.x, y: e.dir.y, z: e.dir.z },
         ads: e.ads || 0,

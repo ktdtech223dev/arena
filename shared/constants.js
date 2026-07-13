@@ -97,6 +97,10 @@ export const WEAPON_COMBAT = {
   revolver:{ damage: 78,  headMult: 2.0, falloff: { start: 20,  end: 55,  minMult: 0.4 } },
   // burst rifle: each of the 3 rounds resolves as a normal hitscan shot server-side.
   burst:   { damage: 30,  headMult: 1.75, falloff: { start: 35, end: 95,  minMult: 0.6 } },
+  // ARC LANCE (dual-mode): primary = fast hitscan beam; alt 'arclance_alt' lobs a
+  // grenade (arc + fuse + splash from GRENADE/PROJECTILES.grenade).
+  arclance:      { damage: 13, headMult: 1.5, falloff: { start: 25, end: 70, minMult: 0.5 } },
+  arclance_alt:  { damage: 0,  headMult: 1,   falloff: null, projectile: 'grenade' },
   // Projectile weapons: `projectile` names a PROJECTILES entry — the server
   // spawns a networked projectile instead of resolving hitscan. damage/headMult
   // here are unused for these (the projectile carries its own damage).

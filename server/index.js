@@ -183,7 +183,9 @@ io.on('connection', (socket) => {
 
   socket.on('fire', (fire) => {
     if (!player || !player.alive || !fire) return;
-    if (fire.weaponId) player.weaponId = fire.weaponId;
+    // viewId (if present) is the base gun for the remote viewmodel; weaponId is the
+    // combat-resolution id (a dual-mode ALT sends its virtual '<id>_alt' as weaponId).
+    if (fire.weaponId) player.weaponId = fire.viewId || fire.weaponId;
     const projKind = WEAPON_COMBAT[fire.weaponId]?.projectile;
     if (projKind) {
       // server-authoritative networked projectile (sawblade / rocket)
