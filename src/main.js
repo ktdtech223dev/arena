@@ -11,6 +11,7 @@ import { Emitter } from './core/Events.js';
 import { Settings } from './core/Settings.js';
 import { Input } from './core/Input.js';
 import { AudioEngine } from './core/Audio.js';
+import { AudioBank } from './audio/AudioBank.js';
 import { Colliders } from './world/Colliders.js';
 import { RangeWorld } from './world/Range.js';
 import { Targets } from './world/Targets.js';
@@ -129,6 +130,9 @@ async function boot() {
   ctx.settings = new Settings();
   ctx.input = new Input(ctx);
   ctx.audio = new AudioEngine(ctx);
+  // real-sample bank layered over the synth (real files win, synth is the fallback).
+  // Global so BOTH the Test Range and Arena hear the transcoded gun samples.
+  ctx.audioBank = new AudioBank(ctx);
 
   // ---- world ----------------------------------------------------------------
   ctx.world = {};

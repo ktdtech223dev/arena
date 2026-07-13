@@ -43,7 +43,7 @@ export class ArenaMode {
     ctx.world.raycastShot = (o, d, m) => this._raycastShot(o, d, m);
 
     // --- audio (real samples + synth fallback) ---
-    this.audioBank = new AudioBank(ctx);
+    this.audioBank = ctx.audioBank || (ctx.audioBank = new AudioBank(ctx));
     this._footIdx = 0;
 
     // --- net stack ---
@@ -282,9 +282,7 @@ export class ArenaMode {
         dir: { x: e.dir.x, y: e.dir.y, z: e.dir.z },
         ads: e.ads || 0,
       });
-      // route the fire sound through the real-sample bank (positional not needed for self)
-      const cue = { pistol: 'pistol_fire', smg: 'smg_fire', shotgun: 'shotgun_fire', ar: 'rifle_fire', sniper: 'sniper_fire' }[this.ctx.weapons?.current?.def?.id];
-      if (cue) this.audioBank.play(cue, { volume: 0.9 });
+      // (fire sound is played once by the weapon FSM via ctx.audioBank — see Weapon.js)
     });
 
     // MELEE swings (§1C): forward a lag-comp swing to the server for authoritative

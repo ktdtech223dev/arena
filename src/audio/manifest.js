@@ -14,12 +14,17 @@
 
 // cue -> filename under /audio/ (all .wav, CC0 drop-ins; see public/audio/README.md)
 export const MANIFEST = {
-  // ---- guns ----
-  pistol_fire:    'pistol_fire.wav',
-  smg_fire:       'smg_fire.wav',
-  shotgun_fire:   'shotgun_fire.wav',
-  rifle_fire:     'rifle_fire.wav',
-  sniper_fire:    'sniper_fire.wav',
+  // ---- guns ---- (real samples from the Vunsunta firearm pack, transcoded to
+  // small mono OGGs; see public/audio/README.md. Missing ones still synth-fallback.)
+  pistol_fire:    'pistol_fire.ogg',
+  smg_fire:       'smg_fire.ogg',
+  shotgun_fire:   'shotgun_fire.ogg',
+  ar_fire:        'ar_fire.ogg',
+  rifle_fire:     'ar_fire.ogg',      // alias (remote AR fire cue) → same sample
+  sniper_fire:    'sniper_fire.ogg',
+  dmr_fire:       'dmr_fire.ogg',
+  revolver_fire:  'revolver_fire.ogg',
+  burst_fire:     'burst_fire.ogg',   // FAMAS-derived; used by the burst rifle
 
   // ---- reload / weapon mechanics ----
   reload_magout:  'reload_magout.wav',
@@ -58,8 +63,12 @@ export const CUE_TO_SYNTH = {
   pistol_fire:    'pistol_fire',
   smg_fire:       'smg_fire',
   shotgun_fire:   'shotgun_fire',
+  ar_fire:        'ar_fire',
   rifle_fire:     'ar_fire',
   sniper_fire:    'sniper_fire',
+  dmr_fire:       'dmr_fire',
+  revolver_fire:  'revolver_fire',
+  burst_fire:     'ar_fire',   // no dedicated synth for the new burst rifle → AR foley
 
   // ---- reload / weapon mechanics ----
   // generic reload cues map to the assault-rifle foley (the mid-weight "default"

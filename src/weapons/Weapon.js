@@ -266,7 +266,9 @@ export class Weapon {
 
     this._bloom = Math.min(def.spread.bloomMax, this._bloom + def.spread.bloomPerShot);
     this.manager.recoil.onFire(def, this.ads);
-    ctx.audio.play(def.sounds.fire, { volume: 1, rate: 0.96 + Math.random() * 0.08 });
+    // real sample when loaded (AudioBank), synth fallback otherwise. The bank is the
+    // single fire-sound source now (the arena net layer no longer double-plays it).
+    (ctx.audioBank || ctx.audio).play(def.sounds.fire, { volume: 1, rate: 0.96 + Math.random() * 0.08 });
     ctx.events.emit('weapon:fired', { def, origin, dir: baseDir, ads: this.ads });
 
     if (def.cycle) {

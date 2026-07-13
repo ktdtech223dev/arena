@@ -1,5 +1,19 @@
 # ARENA audio samples (`public/audio/`)
 
+## Shipped gun samples — credit
+
+The `*_fire.ogg` files here are transcoded (curated, trimmed, mono, small OGG) from
+the **Vunsunta Firearm Sound Pack V2** — a FREE pack licensed for **non-commercial
+use**. Credit: *Vunsunta*. If ARENA ever ships commercially, replace these with a
+royalty-free/CC0 set (see sources below). Mapping (cue ← source weapon):
+`pistol←1911 · smg←mp5 · shotgun←rem870 · ar←m4a1 · sniper←m82 · dmr←m14 ·
+revolver←ragingbull · burst←famas`.
+
+Note: `.ogg` is used for the shipped gun samples (Chromium decodes it, and it's far
+smaller than WAV); the manifest points at the exact filenames. Other cues below list
+`.wav` but any decodable container works.
+
+
 Drop **CC0** `.wav` files here to replace RANGE's synthesized sounds with real
 recordings. This directory is served at `/audio/` by Vite in dev and shipped in
 `dist/` for prod. **Real files win; any missing file falls back to the procedural
