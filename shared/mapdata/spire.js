@@ -23,20 +23,31 @@ export const data = normalizeMap({
     box(13, 0, -14, 14, 20, 14),                       // +X wall
     box(-14, 0, -14, -13, 20, 14),                     // -X wall
     // stacked ring tiers around the shaft (shaft hole x,z in [-3,3])
-    ...ring(5, 12, 3), ...ring(10, 12, 3), ...ring(15, 12, 3),
-    // shaft wall-run columns (4), tall
-    box(-3.4, 0, -3.4, -3, 18, 3.4, { wallrun: true }),
-    box(3, 0, -3.4, 3.4, 18, 3.4, { wallrun: true }),
-    box(-3.4, 0, 3, 3.4, 18, 3.4, { wallrun: true }),
-    box(-3.4, 0, -3.4, 3.4, 18, -3, { wallrun: true }),
+    // tier-1 (h5): +X bar SHORTENED to x[3,8] so the +X climb ramp (tops at x=8,y5)
+    // isn't buried under the y4.6 plate underside (audit HIGH fix).
+    box(-12, 4.6, 3, 12, 5, 12),    // +Z bar
+    box(-12, 4.6, -12, 12, 5, -3),  // -Z bar
+    box(3, 4.6, -3, 8, 5, 3),       // +X bar (12→8, clears ramp)
+    box(-12, 4.6, -3, -3, 5, 3),    // -X bar
+    ...ring(10, 12, 3), ...ring(15, 12, 3),
+    // shaft wall-run corner POSTS (4, thin 0.4×0.4) — keep wall-run surfaces but
+    // leave the 4 faces open so players can vault into the shaft/lift (audit HIGH:
+    // full-face panels sealed the shaft, killing the lift + drop-down flow).
+    box(-3.4, 0, -3.4, -3, 18, -3, { wallrun: true }),  // -X/-Z corner
+    box(3, 0, -3.4, 3.4, 18, -3, { wallrun: true }),    // +X/-Z corner
+    box(-3.4, 0, 3, -3, 18, 3.4, { wallrun: true }),    // -X/+Z corner
+    box(3, 0, 3, 3.4, 18, 3.4, { wallrun: true }),      // +X/+Z corner
     // a couple of overhang ledges off the shaft columns (wall-jump targets)
     box(-6, 7.5, -1.4, -3, 7.9, 1.4), box(3, 12.5, -1.4, 6, 12.9, 1.4),
   ],
   ramps: [
     // alternating ramps climb the ring: +X side 0→5, -Z 5→10, +Z 10→15
     { min: V(8, 0, -3), max: V(12, 5, 3), axis: 'x', h0: 5, h1: 0 },
-    { min: V(-3, 5, -12), max: V(3, 10, -8), axis: 'z', h0: 0, h1: 5 },
-    { min: V(-3, 10, 8), max: V(3, 15, 12), axis: 'z', h0: 5, h1: 0 },
+    // h0/h1 corrected to match the box y-range so the walk surface actually
+    // spans tier1→tier2 (was h0:0,h1:5 → surface sat at y0..5 over the ground).
+    { min: V(-3, 5, -12), max: V(3, 10, -8), axis: 'z', h0: 5, h1: 10 },
+    // tier2→tier3: was h0:5,h1:0 → surface sat at y0..5; now matches box y10..15.
+    { min: V(-3, 10, 8), max: V(3, 15, 12), axis: 'z', h0: 10, h1: 15 },
   ],
   spawns: [
     spawn(-11, 0, -11, 45), spawn(11, 0, 11, -135),      // ground opposite corners

@@ -236,6 +236,8 @@ export class Warren extends MapEnv {
     this.light('point',  { color: 0xff2412, intensity: 2.3, dist: 15, pos: { x: -11.5, y: 3.7, z: -11.5 } });        // NW room
     this._redB = this.light('point', { color: 0xff3016, intensity: 2.3, dist: 15, pos: { x: 11.5, y: 3.7, z: -11.5 } }); // NE room (pulses, offset phase)
     this.light('point',  { color: 0xff2412, intensity: 2.3, dist: 15, pos: { x: 11.5, y: 3.7, z: 11.5 } });          // SE room
+    this.light('point',  { color: 0xff2412, intensity: 2.3, dist: 15, pos: { x: -11.5, y: 3.7, z: 11.5 } });         // SW room (sump-access), added corner practical
+    this.light('point',  { color: 0x2ce0ff, intensity: 1.2, dist: 10, pos: { x: -11.5, y: 1.6, z: 13.5 } });         // SW stair-descent cyan fill
 
     // RING-CORRIDOR SPURS — cold cyan work-lights on the N/S/E/W spur walls so the ring
     // loop and doorway chokepoints stay lit between the red rooms (identity + contrast).

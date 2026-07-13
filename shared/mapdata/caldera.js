@@ -35,7 +35,7 @@ export const data = normalizeMap({
     { min: V(3.5, 0, -1.5), max: V(10.5, 7, 1.5), axis: 'x', h0: 7, h1: 0 },
   ],
   spawns: [
-    spawn(9, 0, -9, -45), spawn(-9, 0, 9, 135),            // floor NE / SW, facing center
+    spawn(11, 0, -9, -45), spawn(-11, 0, 9, 135),          // floor NE / SW, facing center (nudged off lava-fissure lips cal_c1/cal_c2)
     spawn(-14, 2.5, 0, 90), spawn(14, 2.5, 0, -90),        // terrace-1 W / E
     spawn(0, 5, -16.5, 0), spawn(0, 5, 16.5, 180),         // rim N / S (plug blocks the cross)
   ],

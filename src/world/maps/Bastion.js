@@ -246,13 +246,18 @@ export class Bastion extends MapEnv {
     //   • the contested BREACH / gate (the pinch every route crosses)
     //   • the keep COURTYARD walls (so the high half reads under the moonlight)
     //   • the below-grade FIELD trenches (the near-black corners the fill can't fully lift)
+    // Intensities raised ~12× (decay stays 2) so these read as REAL FILL on the stone,
+    // not cosmetic ~0.1-at-5m glows. Two extra fills lift the darkest reachable spots the
+    // audit called out: the deep keep courtyard centre + the rear keep-wall interior.
     for (const p of [
-      { c: 0xffa048, i: 2.6, d: 24, x: 0, y: 5, z: 2 },      // breach/gate brazier — brightest, contested pinch
-      { c: 0xff8a3a, i: 2.1, d: 20, x: -10, y: 6, z: -3.5 }, // courtyard west wall torch
-      { c: 0xff8a3a, i: 2.1, d: 20, x: 10, y: 6, z: -3.5 },  // courtyard east wall torch
-      { c: 0xff7a30, i: 1.9, d: 22, x: 0, y: 6, z: -28 },    // rear keep wall brazier — lights the tower base + battlements
-      { c: 0xff7326, i: 2.0, d: 22, x: -11, y: 2.4, z: 12 }, // field/trench ember — lifts the near low ground
-      { c: 0xff7326, i: 2.0, d: 22, x: 6, y: 0.6, z: 25 },   // deep trench ember — the darkest field corner
+      { c: 0xffa048, i: 32, d: 24, x: 0, y: 5, z: 2 },       // breach/gate brazier — brightest, contested pinch
+      { c: 0xff8a3a, i: 26, d: 20, x: -10, y: 6, z: -3.5 },  // courtyard west wall torch
+      { c: 0xff8a3a, i: 26, d: 20, x: 10, y: 6, z: -3.5 },   // courtyard east wall torch
+      { c: 0xff9440, i: 26, d: 22, x: 0, y: 3.5, z: -15 },   // deep keep-courtyard centre fill (darkest reachable keep spot)
+      { c: 0xff7a30, i: 24, d: 22, x: 0, y: 6, z: -28 },     // rear keep wall brazier — lights the tower base + battlements
+      { c: 0xff8a3a, i: 24, d: 20, x: 0, y: 5, z: -24 },     // rear keep-wall interior fill (tower-base gap)
+      { c: 0xff7326, i: 24, d: 22, x: -11, y: 2.4, z: 12 },  // field/trench ember — lifts the near low ground
+      { c: 0xff7326, i: 24, d: 22, x: 6, y: 0.6, z: 25 },    // deep trench ember — the darkest field corner
     ]) this.light('point', { color: p.c, intensity: p.i, dist: p.d, pos: { x: p.x, y: p.y, z: p.z } });
   }
 
@@ -330,10 +335,10 @@ export class Bastion extends MapEnv {
     // cool hemisphere FILL — the single biggest readability lever. Pale cold-blue storm
     // sky from above, damp grey-green earth bounce from below; raised hard so shadowed
     // battlements + below-grade trenches stay clearly visible.
-    this.light('hemi', { sky: 0x6f8a96, ground: 0x2a322e, intensity: 1.35 });
+    this.light('hemi', { sky: 0x6f8a96, ground: 0x2a322e, intensity: 1.55 });
     // flat ambient floor so the very darkest corners (trench undersides, arch recesses,
     // moat banks) never crush to black. Kept cool + low so contrast + mood survive.
-    this.light('ambient', { color: 0x39464c, intensity: 0.5 });
+    this.light('ambient', { color: 0x39464c, intensity: 0.62 });
   }
 
   // ===== PER-FRAME =========================================================

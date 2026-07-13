@@ -37,8 +37,9 @@ export const data = normalizeMap({
     // ---- CROSSOVER BRIDGES at the two junctions (short flat landings that tie the
     //      climbing ramps into each loop deck so the figure-8 is continuous) ----
     box(-2, 0.4, 10, 8, 1, 13.4),        // N: low-side landing (foot of N climb)
-    box(-1, 6.4, 10, 8, 7, 13.4),        // N: high-side landing (head of N climb)
-    box(-8, 6.4, -13.4, 2, 7, -10),      // S: high-side landing (head of S climb)
+    // N/S high-side landings deleted: they were solid slabs at y6.4→7 that buried the
+    // crossover ramps below them. The ramps now top out exactly at the high-loop deck
+    // edge (x=-0.4), where the high N/S bars already provide the y7 landing floor.
     box(-8, 0.4, -13.4, 3, 1, -10),      // S: low-side landing (foot of S climb)
     // ---- suspended TIMING GANTRY posts over the center over/under (wall-runnable
     //      pillars — the shared cyan wall-run language) ----
@@ -53,14 +54,17 @@ export const data = normalizeMap({
     box(26.4, 1, -1.7, 27.4, 6, 1.7, { wallrun: true }),    // far-east high kicker
   ],
   ramps: [
-    // N crossover: LOW loop N deck (y1) climbs UP to HIGH loop N deck (y7). rise 6 / len 9, slope 0.67.
-    { min: V(-2, 0, 10.6), max: V(7, 7, 12.8), axis: 'x', h0: 1, h1: 7 },
-    // S crossover: HIGH loop S deck (y7) descends DOWN to LOW loop S deck (y1) — closes the figure-8 loop.
-    { min: V(-7, 0, -12.8), max: V(2, 7, -10.6), axis: 'x', h0: 7, h1: 1 },
+    // N crossover: LOW loop N deck (y1) climbs UP to HIGH loop N deck (y7). Runs WEST of the
+    // high deck edge (tops out at x=-0.4) so it never passes under the high N bar. rise 6 / run 7.6, slope 0.79.
+    { min: V(-8, 0, 10.6), max: V(-0.4, 7, 12.8), axis: 'x', h0: 1, h1: 7 },
+    // S crossover: LOW loop S deck (y1) climbs UP to HIGH loop S deck (y7) — closes the figure-8 loop.
+    // Mirror of N: tops out at the high deck edge (x=-0.4), clear of the high S bar overhead.
+    { min: V(-8, 0, -12.8), max: V(-0.4, 7, -10.6), axis: 'x', h0: 1, h1: 7 },
     // secondary low→high on-ramp along the shared center strip (2nd vertical route, west inner edge)
     { min: V(-3.4, 0, 3.5), max: V(0.4, 7, 9.5), axis: 'z', h0: 1, h1: 7 },
-    // secondary high→low return on the east inner edge (keeps both tiers ≥2 routes, no dead ends)
-    { min: V(-0.4, 0, -9.5), max: V(3.4, 7, -3.5), axis: 'z', h0: 1, h1: 7 },
+    // secondary high→low return, west inner edge (shifted W to clear the high W-bar overhang, like ramps[2];
+    // min.x kept at -2.5 so its r-expanded footprint stays clear of low-loop spawn[2] at x=-3).
+    { min: V(-2.5, 0, -9.5), max: V(0.4, 7, -3.5), axis: 'z', h0: 1, h1: 7 },
   ],
   spawns: [
     // LOW loop — 3 spawns 120° apart around the ring, each facing inward across the

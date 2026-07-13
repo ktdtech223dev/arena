@@ -83,8 +83,8 @@ export const data = normalizeMap({
     spawn(19, 0.6, 0, 0),       // outer +X, facing +Z around the ring
     spawn(0, 0.6, -19, 90),     // outer −Z, facing +X around the ring
     spawn(-19, 0.6, 0, 180),    // outer −X, facing −Z around the ring
-    spawn(10, 0.6, 6, 180),     // inner (+X/+Z), facing −Z along the inner lane
-    spawn(-10, 0.6, -6, 0),     // inner (−X/−Z), facing +Z along the inner lane
+    spawn(10, 0.6, -5, 180),    // inner (+X/−Z), on inner E bar clear of +X access-ramp z-band [3,7]
+    spawn(-10, 0.6, 5, 0),      // inner (−X/+Z), on inner W bar clear of −X access-ramp z-band [−7,−3]
   ],
   barrels: [
     { id: 'hl_b1', pos: V(19, 0.6, 8), hp: 35 },    // outer +X lane

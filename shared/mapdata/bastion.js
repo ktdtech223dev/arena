@@ -19,8 +19,10 @@ export const data = normalizeMap({
     box(-60, -20, -60, 60, -19, 60),                         // world catch floor under the water hazard
 
     // ══════════════ HIGH KEEP HALF (−Z) — raised, commanding ══════════════
-    // keep courtyard floor (mid-high tier, y3)
-    box(-16, 2.4, -30, 16, 3, -3),
+    // keep courtyard floor (mid-high tier, y3) — max.z extended -3 → -2 to close the
+    // KEEP↔BREACH ground seam (nothing floored z(-3,-2); now the courtyard meets the
+    // curtain-wall/breach-rubble line flush at z=-2 so the breach is a continuous exit)
+    box(-16, 2.4, -30, 16, 3, -2),
     // keep back rampart / rear wall (boundary at the −Z end, wall-runnable inner face)
     box(-18, 2.4, -34, 18, 12, -30, { wallrun: true }),
     // keep side walls (boundary), enclosing the courtyard E/W, wall-runnable inner faces
@@ -60,8 +62,26 @@ export const data = normalizeMap({
     box(-6, 2.4, 2, 8, 3, 6),
 
     // ══════════════ LOW SIEGE FIELD HALF (+Z) — below grade ════════════════
-    // siege field grade floor (low tier, y0) — the open muddy field
-    box(-16, -0.4, 6, 16, 0, 30),
+    // siege field grade floor (low tier, y0) — the open muddy field, SPLIT into pieces
+    // that leave the three below-grade TRENCH rects OPEN (were buried under a single
+    // continuous slab, burying the trench floors + spawn[5] and masking the access ramps).
+    // Trench rects left open: west x[-14,-2]z[12,16] · east x[2,14]z[20,24] · rear x[-8,8]z[24,28].
+    // (Ramp columns stay grade-covered — a below-grade player isn't masked by the slab, so
+    // the access ramps still lift climbers out; see movement-core resolveVertical.)
+    box(-16, -0.4, 6, 16, 0, 12),                           // z[6,12] full
+    box(-16, -0.4, 12, -14, 0, 16),                         // z[12,16] west of the west trench
+    box(-2, -0.4, 12, 16, 0, 16),                           // z[12,16] east of the west trench
+    box(-16, -0.4, 16, 16, 0, 20),                          // z[16,20] full
+    box(-16, -0.4, 20, 2, 0, 24),                           // z[20,24] west of the east trench
+    box(14, -0.4, 20, 16, 0, 24),                           // z[20,24] east of the east trench
+    box(-16, -0.4, 24, -8, 0, 28),                          // z[24,28] west of the rear trench
+    box(8, -0.4, 24, 16, 0, 28),                            // z[24,28] east of the rear trench
+    box(-16, -0.4, 28, 16, 0, 30),                          // z[28,30] full
+    // FIELD-FRONT APRONS (y0) flanking the y3 breach landing across z[2,6] — close the two
+    // unwalled RAVINE PITS between the curtain wall (z=2) and the field front edge (z=6)
+    // that dropped flank players ~19m onto the dry catch floor (no water hazard covers this band).
+    box(-18, -0.4, 2, -6, 0, 6),                            // west field-front apron
+    box(8, -0.4, 2, 18, 0, 6),                              // east field-front apron
     // outer field walls (boundary, E/W), lower + wall-runnable inner faces
     box(-18, -0.4, 6, -16, 6, 34, { wallrun: true }),        // west field wall
     box(16, -0.4, 6, 18, 6, 34, { wallrun: true }),          // east field wall
@@ -105,12 +125,12 @@ export const data = normalizeMap({
   spawns: [
     // KEEP side (high) — staggered courtyard + battlement, facing the field/down. No two
     // keep spawns share a z or x line; the tower + parapets break the diagonals.
-    spawn(-12, 3, -26, 180),                                 // NW keep courtyard (deep), facing field
+    spawn(-14.5, 3, -26, 180),                               // NW keep courtyard (deep), facing field — moved clear of the solid keep-tower shaft (was inside x[-13,-7])
     spawn(11, 3, -8, 200),                                   // E keep courtyard (near-wall), facing field-ward
-    spawn(-16, 10, -20, 120),                                // W battlement walk (deep), overlooking the field
+    spawn(-15, 10, -20, 120),                                // W battlement walk (deep), overlooking the field — nudged inward off the x=-16 keep-wall seam
     // SIEGE side (low) — staggered field + trench, tight facings toward the wall/breach
-    spawn(13, 0, 27, 340),                                   // SE field (deep), facing the wall
-    spawn(-11, 0, 12, 20),                                   // W field (near-wall), facing the breach
+    spawn(14, 0, 27, 340),                                   // SE field (deep), facing the wall — nudged off the SE crater-rim block (x[9,13])
+    spawn(-11, 0, 10.5, 20),                                 // W field (near-wall), facing the breach — moved south of the west-trench lip/hole onto clear grade
     spawn(0, -2, 26, 0),                                     // rear cross-trench (below grade), fully cornered
   ],
   barrels: [

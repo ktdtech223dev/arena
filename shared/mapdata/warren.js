@@ -60,7 +60,7 @@ export const data = normalizeMap({
     box(20, -2.4, -20.4, 20.4, 5.4, 20.4),             // east shell wall
     box(-20.4, -2.4, -20.4, 20.4, 5.4, -20),           // north shell wall
     box(-20.4, -2.4, 20, 20.4, 5.4, 20.4),             // south shell wall
-    slab(-20, -20, 20, 20, 5.0, 0.5),                  // shell ceiling underside = y5.0
+    slab(-20, -20, 20, 20, 6.0, 0.5),                  // shell ceiling underside = y6.0 (raised from 5.0 for catwalk headroom)
 
     // ===================== CENTRAL CISTERN CHAMBER (x±6, z±6) =====================
     // A larger chamber the corridors feed into. Four doorways (mid of each wall)

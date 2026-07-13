@@ -12,3 +12,7 @@ launcher/release/
 data/
 .claude/
 .railwayignore
+
+# playtest agent scratch probes
+.probe_*.mjs
+.map_audit.json

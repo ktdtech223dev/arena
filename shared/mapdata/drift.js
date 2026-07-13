@@ -78,15 +78,15 @@ export const data = normalizeMap({
     // small cover, height + gaps + the hub break every clean cross-spawn peek).
     spawn(19, 3, 0, 270),      // E-mid (y3), facing -X toward center
     spawn(-19, 3, 0, 90),      // W-mid (y3), facing +X toward center
-    spawn(0, 9, -26, 180),     // N high perch (y9), facing +Z (down the span)
-    spawn(0, 9, 26, 0),        // S high perch (y9), facing -Z
-    spawn(-21, 6, -21, 135),   // NW corner (y6), facing toward center (+X+Z)
-    spawn(21, 6, 21, 315),     // SE corner (y6), facing toward center (-X-Z)
+    spawn(0, 9, -23.5, 180),   // N high perch (y9), facing +Z (down the span) — nudged +z clear of back wall
+    spawn(0, 9, 23.5, 0),      // S high perch (y9), facing -Z — nudged -z clear of back wall
+    spawn(-23.5, 6, -23.5, 135), // NW corner (y6), facing toward center (+X+Z) — nudged out of cover rock
+    spawn(23.5, 6, 23.5, 315), // SE corner (y6), facing toward center (-X-Z) — nudged out of cover rock
   ],
   barrels: [
     { id: 'df_b1', pos: V(0, 3, 4), hp: 35 },        // hub barrel (south of the spine, clear)
-    { id: 'df_b2', pos: V(19, 3, 0), hp: 35 },       // E-mid
-    { id: 'df_b3', pos: V(-19, 3, 0), hp: 35 },      // W-mid
+    { id: 'df_b2', pos: V(19, 3, 3), hp: 35 },       // E-mid (offset +z off spawn0)
+    { id: 'df_b3', pos: V(-19, 3, 3), hp: 35 },      // W-mid (offset +z off spawn1)
   ],
   // MOVING stepping-stone platforms — the signature drifting stones bridging the
   // corner islands across the deep flank gaps (a flow decision each crossing).
