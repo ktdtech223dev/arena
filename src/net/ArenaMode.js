@@ -183,6 +183,20 @@ export class ArenaMode {
     // world fx (explosions / bounces) — everyone sees them
     conn.on('boom', (e) => { if (e) this.projView.boom(e.kind, e.pos, e.radius); });
 
+    // Someone ELSE fired a hitscan/pellet shot — draw its tracer + a muzzle flash so
+    // you can SEE incoming fire (hitscan is otherwise invisible to the victim). We
+    // skip our own id (we already drew it locally) and reuse the shot:tracer FX.
+    conn.on('shotfx', (e) => {
+      if (!e || e.id === conn.id || !e.o || !e.d) return;
+      const def = this.ctx.weapons?.defs?.find((d) => d.id === e.w) || { tracer: { color: 0xfff0a8, width: 0.03 } };
+      const o = e.o, d = e.d;
+      const from = new THREE.Vector3(o.x + d.x * 0.35, o.y + d.y * 0.35, o.z + d.z * 0.35); // ≈ muzzle
+      const range = e.dist > 0 ? e.dist : 400;
+      const to = new THREE.Vector3(o.x + d.x * range, o.y + d.y * range, o.z + d.z * range);
+      this.ctx.events.emit('shot:tracer', { from, to, def });
+      this.ctx.fx?.particles?.burst?.({ position: from.clone(), count: 5, color: 0xffe08a, speed: 3, spread: 1, life: 0.12, size: 0.18, gravity: 0, drag: 3 });
+    });
+
     // 1E: server-validated kill medals for the LOCAL player (popups + stings)
     conn.on('accolade', (p) => this.accoladeFeed.push(p));
     conn.on('accolade_summary', (list) => { if (this._summaryOpen) this.accoladeFeed.showSummary(list); });

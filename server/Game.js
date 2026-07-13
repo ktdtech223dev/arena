@@ -154,6 +154,7 @@ export class Game {
       const shots = shooter.pendingShots; shooter.pendingShots = [];
       for (const fire of shots) {
         if (!shooter.alive) break;
+        let hitDist = 0; // 0 → client tracer runs to max range (a miss)
         if (WEAPON_COMBAT[fire.weaponId]?.pellets) {
           const map = resolvePellets(shooter, fire, players, now, shooter.clockOffset || 0);
           for (const [vid, r] of map) if (r.dmg > 0) this.applyDamage(shooter.id, vid, r.dmg, r.part, fire.weaponId, now);
@@ -162,10 +163,16 @@ export class Game {
           const ent = raycastEntities(fire, entities);
           if (ent && (!res || ent.dist < res.dist)) {
             this.map.damageEntity(ent.kind, ent.id, WEAPON_COMBAT[fire.weaponId]?.damage || 24, shooter.id, api);
+            hitDist = ent.dist;
           } else if (res) {
             this.applyDamage(shooter.id, res.victimId, res.dmg, res.part, fire.weaponId, now);
+            hitDist = res.dist;
           }
         }
+        // Broadcast a lightweight shot-fx so EVERYONE ELSE sees the tracer + muzzle
+        // flash — hitscan is otherwise invisible to a victim, so you can't tell you're
+        // being shot at. Client ignores its own id (it already drew its shot locally).
+        if (fire.origin && fire.dir) this.io.emit('shotfx', { id: shooter.id, o: fire.origin, d: fire.dir, w: fire.weaponId, dist: hitDist });
       }
     }
 

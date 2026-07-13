@@ -31,7 +31,7 @@ export class Connection {
 
     // server messages -> apply inbound latency, then dispatch
     const forward = (name) => this.sock.on(name, (data) => this._recv(name, data));
-    for (const n of ['welcome', 'player_join', 'player_leave', 'snapshot', 'hit', 'death', 'respawn', 'boom', 'map_change', 'lobby_full', 'accolade', 'accolade_summary', 'pickup', 'maps_updated']) forward(n);
+    for (const n of ['welcome', 'player_join', 'player_leave', 'snapshot', 'hit', 'death', 'respawn', 'boom', 'shotfx', 'map_change', 'lobby_full', 'accolade', 'accolade_summary', 'pickup', 'maps_updated']) forward(n);
 
     this.sock.on('pong', (m) => this._onPong(m));
   }
