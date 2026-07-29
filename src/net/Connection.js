@@ -31,7 +31,7 @@ export class Connection {
 
     // server messages -> apply inbound latency, then dispatch
     const forward = (name) => this.sock.on(name, (data) => this._recv(name, data));
-    for (const n of ['welcome', 'player_join', 'player_leave', 'snapshot', 'hit', 'death', 'respawn', 'boom', 'shotfx', 'map_change', 'lobby_full', 'accolade', 'accolade_summary', 'pickup', 'maps_updated']) forward(n);
+    for (const n of ['welcome', 'player_join', 'player_leave', 'snapshot', 'hit', 'death', 'respawn', 'boom', 'shotfx', 'map_change', 'lobby_full', 'accolade', 'accolade_summary', 'pickup', 'maps_updated', 'mode_change', 'mode_event', 'round_end']) forward(n);
 
     this.sock.on('pong', (m) => this._onPong(m));
   }
@@ -46,6 +46,7 @@ export class Connection {
   sendMelee(m) { this._send('melee', m); }
   sendThrow(t) { this._send('throw', t); }
   sendSetMap(id) { this._send('setMap', { id }); }
+  sendSetMode(id) { this._send('setMode', { id }); }
   sendSwap(weaponId) { this._send('swap', { weaponId }); }
   sendReload(weaponId) { this._send('reload', { weaponId }); }
   sendSummaryReq() { this._send('accolade_summary_req', {}); }

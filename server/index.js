@@ -12,6 +12,7 @@ import { validateCustomMap } from '../shared/custommap.js';
 import { Lobby } from './Lobby.js';
 import { Game } from './Game.js';
 import { StatsStore } from './Stats.js';
+import { MODES } from './Modes.js';
 
 const PORT = Number(process.env.PORT) || 3000;
 const ROOT = process.cwd();
@@ -169,6 +170,7 @@ io.on('connection', (socket) => {
     player = lobby.addPlayer(socket.id, opts);
     player.joinedAt = Date.now();
     player.profileId = safeId(opts.profileId || opts.name || socket.id); // stats identity
+    game.mode.onJoin(player); // balance onto the smaller team in team modes
     player.recordHistory(Date.now());
     socket.emit('welcome', {
       id: player.id,
@@ -183,6 +185,8 @@ io.on('connection', (socket) => {
       // registerCustomMap it and render/predict it identically. Null for built-ins.
       maps: mapList(),
       mapCustom: CUSTOM_RAW.get(lobby.settings.currentMap) || null,
+      mode: game.mode.serialize(Date.now()),
+      modes: Object.entries(MODES).map(([id, m]) => ({ id, name: m.name, teams: m.teams })),
       spawn: { pos: player.spawn.pos, yaw: player.spawn.yaw },
       players: lobby.publicList(),
     });
@@ -221,6 +225,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('setMap', (m) => { if (player && m && m.id && MAPS[m.id]) game.setMap(m.id); });
+  socket.on('setMode', (m) => { if (player && m && m.id) game.setMode(m.id); });
 
   socket.on('swap', (m) => { if (player && m && m.weaponId) player.weaponId = m.weaponId; });
   socket.on('reload', () => { /* ammo is client-tracked for now; server trusts fire cadence */ });

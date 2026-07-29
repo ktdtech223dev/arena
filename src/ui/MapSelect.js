@@ -154,11 +154,21 @@ export class MapSelect {
           </div>
           <div class="ms-x" role="button" tabindex="0" aria-label="Close">‹ BACK</div>
         </div>
+        <div class="ms-modes"></div>
         <div class="ms-grid"></div>
       </div>`;
     parent.appendChild(this.scrim);
     this.panel = this.scrim.querySelector('.ms-panel');
     this.grid = this.scrim.querySelector('.ms-grid');
+    this.modesEl = this.scrim.querySelector('.ms-modes');
+    injectCss('map-select-modes-css', `
+      .ms-modes{display:flex;gap:8px;flex-wrap:wrap;padding:2px 2px 12px;}
+      .ms-modes:empty{display:none;}
+      .ms-mode{font-size:11px;font-weight:800;letter-spacing:.14em;padding:7px 13px;border-radius:6px;cursor:pointer;
+        color:#aebccb;background:rgba(16,22,30,0.9);border:1px solid rgba(125,249,255,0.18);}
+      .ms-mode:hover{color:#eaf6ff;border-color:rgba(125,249,255,0.5);}
+      .ms-mode.on{color:#04121a;background:#7df9ff;border-color:#7df9ff;}
+    `);
     const x = this.scrim.querySelector('.ms-x');
     x.addEventListener('click', () => this.close());
     x.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.close(); } });
@@ -210,6 +220,25 @@ export class MapSelect {
     try { this.onPick(id); } catch (err) { console.warn('[MapSelect] onPick threw', err); }
     if (this.closeOnPick) this.close();
     else this.setCurrent(id); // optimistic re-highlight; server map_change confirms via setCurrent
+  }
+
+  // ---- game-mode chips (shared lobby mode; any crew member can switch) ----
+  setModes(modes, currentId, onPick) {
+    if (!this.modesEl) return;
+    this._modePick = onPick || this._modePick;
+    this.modesEl.textContent = '';
+    for (const m of (modes || [])) {
+      const chip = document.createElement('div');
+      chip.className = 'ms-mode' + (m.id === currentId ? ' on' : '');
+      chip.dataset.mode = m.id;
+      chip.textContent = m.name || m.id.toUpperCase();
+      chip.addEventListener('click', () => { this._sfx('ui_select'); this._modePick?.(m.id); });
+      this.modesEl.appendChild(chip);
+    }
+  }
+  setCurrentMode(id) {
+    if (!this.modesEl) return;
+    for (const c of this.modesEl.children) c.classList.toggle('on', c.dataset.mode === id);
   }
 
   // ---- public API ----

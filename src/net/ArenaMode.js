@@ -24,6 +24,8 @@ import { getMap, mapList, DEFAULT_MAP, registerCustomMap } from '../../shared/ma
 import { buildLiveWorld } from '../../shared/mapsim.js';
 import { POWERUPS, CUSTOM_START_WEAPONS } from '../../shared/custommap.js';
 import { getProfile } from '../core/Profile.js';
+import { ModeHUD } from '../ui/ModeHUD.js';
+import { ModeView } from './ModeView.js';
 
 const FOOTSTEPS = ['footstep_01', 'footstep_02', 'footstep_03', 'footstep_04'];
 
@@ -91,6 +93,10 @@ export class ArenaMode {
       mapList: mapList(), currentId: this.map.id,
       onPick: (id) => this.conn.sendSetMap(id),
     });
+    // game modes: HUD strip + world objects (hill/flags/skull) + picker chips in B
+    this.modeHUD = new ModeHUD(ctx, () => this.conn.id, (id) => this._info(id).name);
+    this.modeView = new ModeView(ctx);
+    this.modeSnap = null;
     ctx.input.onKeyDown('KeyB', () => {
       if (this.mapSelect.isOpen) { this.mapSelect.close(); ctx.input.popUI('mapselect'); }
       else { ctx.input.pushUI('mapselect'); this.mapSelect.open(); }
@@ -152,6 +158,9 @@ export class ArenaMode {
       if (Array.isArray(w.maps) && this.mapSelect) this.mapSelect.setList(w.maps);
       if (w.mapId) this._applyMap(w.mapId, w.map, w.mapCustom);
       if (w.mapId && this.mapSelect) this.mapSelect.setCurrent(w.mapId);
+      // game-mode chips in the B panel + initial mode state
+      if (Array.isArray(w.modes)) this.mapSelect?.setModes?.(w.modes, w.mode?.id, (id) => this.conn.sendSetMode(id));
+      if (w.mode) { this.modeSnap = w.mode; this.modeHUD.update(w.mode); this.modeView.sync(w.mode, conn.id); }
       this.interp.onWelcome(w);
       if (w.spawn) { this.pred.setSpawn(w.spawn); this.ctx.player.camera.yaw = w.spawn.yaw; }
       this.myCrew = w.crew;
@@ -175,6 +184,11 @@ export class ArenaMode {
         this.mapDyn = { doors: snap.map.doors || {}, destroyed: new Set(snap.map.destroyed || []) };
         this.mapRenderer.syncDynamic(snap.map, snap.serverTime / 1000);
       }
+      if (snap.mode) {
+        this.modeSnap = snap.mode;
+        this.modeHUD.update(snap.mode);
+        this.modeView.sync(snap.mode, conn.id);
+      }
       const me = snap.players.find((p) => p.id === conn.id);
       if (me) {
         this.myHp = me.hp; this.myAlive = me.alive;
@@ -187,6 +201,17 @@ export class ArenaMode {
     });
     // world fx (explosions / bounces) — everyone sees them
     conn.on('boom', (e) => { if (e) this.projView.boom(e.kind, e.pos, e.radius); });
+
+    // game-mode lifecycle: round winner banner + mode switches + captures
+    conn.on('round_end', (e) => { if (e) this.modeHUD.roundEnd(e); });
+    conn.on('mode_change', (m) => {
+      if (!m) return;
+      this.modeSnap = m; this.modeHUD.update(m); this.modeView.sync(m, conn.id);
+      this.mapSelect?.setCurrentMode?.(m.id);
+    });
+    conn.on('mode_event', (e) => {
+      if (e?.kind === 'capture') this._flashPickup(`${e.team === 0 ? 'RED' : 'BLUE'} FLAG CAPTURED`);
+    });
 
     // Someone ELSE fired a hitscan/pellet shot — draw its tracer + a muzzle flash so
     // you can SEE incoming fire (hitscan is otherwise invisible to the victim). We
@@ -448,6 +473,7 @@ export class ArenaMode {
     this.interp.update(dt);
     this.projView.update(dt, renderTime);
     this.pickupView.update(dt);
+    this.modeView.update(dt);
     this.dmgIndicator.update(dt);
     this.killFeed.update(dt);
     this.accoladeFeed.update(dt);

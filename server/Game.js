@@ -12,6 +12,7 @@ import { ProjectileSim } from './Projectiles.js';
 import { MapState } from './MapState.js';
 import { Accolades } from './Accolades.js';
 import { Pickups } from './Pickups.js';
+import { ModeState, MODES } from './Modes.js';
 import { CUSTOM_RAW } from '../shared/maps.js';
 
 const TICK_MS = 1000 / TICK_RATE;
@@ -25,6 +26,7 @@ export class Game {
     this.pickups = new Pickups();
     this.pickups.load(this.map.map); // gameplay-object pickups + jump pads for this map
     this.accolades = new Accolades(io, lobby, ACCOLADES); // server-authoritative kill medals
+    this.mode = new ModeState(this); // game-mode engine (ffa/tdm/ctf/koth/oddball)
     this.tickCount = 0;
     this._timer = null; this._acc = 0; this._last = 0;
   }
@@ -51,8 +53,16 @@ export class Game {
     const now = Date.now();
     for (const p of this.lobby.players.values()) { const s = this.lobby.farSpawn(); p.respawn(s, now); }
     this.accolades.resetMatch(); // a map swap starts a fresh match for medals
+    this.mode.reset();           // fresh round on the new map (zone/flag/orb re-derive)
     // custom maps: include the raw authored JSON so clients can register + render it.
     this.io.emit('map_change', { mapId: this.map.mapId, map: this.map.serialize(), custom: CUSTOM_RAW.get(this.map.mapId) || null });
+  }
+
+  setMode(id) {
+    if (!MODES[id]) return;
+    this.mode.set(id);
+    this.accolades.resetMatch();
+    this.io.emit('mode_change', this.mode.serialize(Date.now()));
   }
 
   // GRANT a pickup's effect to a player (server-authoritative). Emits a 'pickup'
@@ -118,6 +128,7 @@ export class Game {
   applyDamage(attackerId, victimId, dmg, part, weapon, now) {
     const victim = this.lobby.players.get(victimId);
     if (!victim || !victim.alive || dmg <= 0) return;
+    if (this.mode?.blocksDamage(attackerId, victimId)) return; // no friendly fire in team modes
     // ATTACKER's active damage/quad powerup multiplies outgoing damage.
     const attacker0 = this.lobby.players.get(attackerId);
     if (attacker0 && attacker0.dmgMult && attacker0.dmgMult !== 1) dmg = Math.round(dmg * attacker0.dmgMult);
@@ -146,6 +157,7 @@ export class Game {
         awards = this.accolades.onKill(attacker, victim, { weapon, part, dist, now });
       }
       this.accolades.onDeath(victimId, attackerId);
+      if (attackerId !== victimId) this.mode?.onKill(attackerId, victimId); // mode scoring
       // ---- persistent per-profile STATS (menu hub: stats/accolades/camos) ----
       if (this.stats) {
         if (attacker && attackerId !== victimId) {
@@ -208,6 +220,7 @@ export class Game {
 
     // 4) map mechanics (doors open/close, hazard damage)
     this.map.step(SERVER_DT, t, players, api);
+    this.mode.step(SERVER_DT, now, players); // mode scoring: hill/skull/flags/timer
 
     // 5) networked projectiles
     this.projectiles.step(SERVER_DT, players, api);
@@ -289,15 +302,17 @@ export class Game {
     // 7c) gameplay-object pickups (grab + grant + respawn) + jump pads.
     this.pickups.step(now, players, (pl, pk) => this.grantPickup(pl, pk, now));
 
-    // 8) snapshots (players + projectiles + map dynamic state + pickups)
+    // 8) snapshots (players + projectiles + map dynamic state + pickups + mode)
     const projSnap = this.projectiles.serialize();
     const mapSnap = this.map.serialize();
     const pickSnap = this.pickups.serialize();
+    const modeSnap = this.mode.serialize(now);
     for (const p of players.values()) {
       const snap = buildSnapshot(players, this.tickCount, now, p);
       snap.projectiles = projSnap;
       snap.map = mapSnap;
       snap.pickups = pickSnap;
+      snap.mode = modeSnap;
       this.io.to(p.id).emit('snapshot', snap);
     }
   }
