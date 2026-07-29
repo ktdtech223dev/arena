@@ -66,25 +66,25 @@ export class TdView {
     // ---- units ----
     const seenU = new Set();
     for (const row of h.units || []) {
-      const [uid, defId, x, z, ta, tb, owner, invested] = row;
+      const [uid, defId, x, z, ta, tb, owner, invested, tc = 0, acd = -1] = row;
       seenU.add(uid);
       let u = this.units.get(uid);
       const def = UNIT_BY_ID[defId];
       if (!def) continue;
       if (!u) {
-        u = { uid, defId, def, x, z, tiers: [-1, -1], model: null, owner, invested };
+        u = { uid, defId, def, x, z, tiers: [-1, -1, -1], model: null, owner, invested };
         this.units.set(uid, u);
       }
-      u.owner = owner; u.invested = invested; u.x = x; u.z = z;
-      if (u.tiers[0] !== ta || u.tiers[1] !== tb) {
+      u.owner = owner; u.invested = invested; u.x = x; u.z = z; u.abilityCd = acd;
+      if (u.tiers[0] !== ta || u.tiers[1] !== tb || u.tiers[2] !== tc) {
         if (u.model) this._disposeModel(u.model.group);
-        u.tiers = [ta, tb];
+        u.tiers = [ta, tb, tc];
         u.model = buildUnitModel(def, u.tiers);
         u.model.group.position.set(x, 0, z);
         this.group.add(u.model.group);
         // live stats mirror (for depot resupply radius etc.)
         u.stats = { ...def };
-        for (let p = 0; p < 2; p++) for (let t = 0; t < u.tiers[p]; t++) applyMods(u.stats, def.paths[p][t].mod);
+        for (let p = 0; p < def.paths.length; p++) for (let t = 0; t < (u.tiers[p] | 0); t++) applyMods(u.stats, def.paths[p][t].mod);
       }
     }
     for (const [uid, u] of this.units) if (!seenU.has(uid)) { if (u.model) this._disposeModel(u.model.group); this.units.delete(uid); }
@@ -205,7 +205,29 @@ export class TdView {
         this._lobShell(muzzle || V(fx.x, fx.y + 8, fx.z), V(fx.x, fx.y, fx.z), fx.r | 0, u?.def);
         break;
       case 'boom':
-        this._burst(V(fx.x, fx.y, fx.z), 0xff8a3a, 16, 6, 0.24);
+        this._burst(V(fx.x, fx.y, fx.z), fx.sun ? 0xfff2a8 : 0xff8a3a, fx.sun ? 40 : 16, fx.sun ? 9 : 6, fx.sun ? 0.4 : 0.24);
+        if (fx.sun) { // SUNSTRIKE: sky lance + white-hot ring
+          this._tracer(V(fx.x, 40, fx.z), V(fx.x, fx.y, fx.z), 0xfff2a8, 0.14);
+          this._ring(V(fx.x, 0, fx.z), 0xffd166, (fx.r | 0) + 2);
+          (this.ctx.audioBank || this.ctx.audio).play('explosion', { position: V(fx.x, fx.y, fx.z), volume: 1, rate: 0.8 });
+        }
+        break;
+      case 'eatk': { // horde attack on a PLAYER: melee lunge flash or ranged spit tracer
+        const from = V(fx.x, fx.y, fx.z), to = V(fx.tx, fx.ty, fx.tz);
+        if (fx.r) { this._tracer(from, to, 0x9fe86a, 0.05); (this.ctx.audioBank || this.ctx.audio).play('seeker_launch', { position: from, volume: 0.55, rate: 1.5 }); }
+        else { this._burst(to, 0xff6b6b, 10, 1.5, 0.14); (this.ctx.audioBank || this.ctx.audio).play('melee_whiff', { position: from, volume: 0.7, rate: 0.8 }); }
+        break; }
+      case 'warcry': // LAST STAND: gold shockwave from the banner
+        this._ring(V(fx.x, 0, fx.z), 0xffd166, 24, 0.4);
+        this._burst(V(fx.x, 2, fx.z), 0xffd166, 30, 6, 0.3);
+        (this.ctx.audioBank || this.ctx.audio).play('td_banner', { volume: 1, rate: 0.7 });
+        break;
+      case 'ult': // any ultimate firing: punchy cue + flash at the tower
+        if (u) { this._burst(V(u.x, 2, u.z), 0xffffff, 24, 3, 0.3); (this.ctx.audioBank || this.ctx.audio).play('accolade_big', { volume: 0.9, rate: 0.85 }); }
+        break;
+      case 'penalty': // a crew death bled gold — the whole crew sees it
+        this.ctx.events.emit('td:penalty', { pid: fx.pid, g: fx.g, pct: fx.pct });
+        (this.ctx.audioBank || this.ctx.audio).play('land_hard', { volume: 0.8, rate: 0.4 });
         break;
       case 'freeze':
         this._burst(V(fx.x, 1, fx.z), 0x7df9ff, 26, (fx.r | 0), 0.18);

@@ -223,47 +223,95 @@ export class Input {
     });
   }
 
+  // MW2019-style pause: option bars stacked on the LEFT, the live scene blurred
+  // and gently parallaxing behind. Esc unlocks → this appears; click resumes.
   _buildHint() {
+    if (!document.getElementById('pause-css')) {
+      const s = document.createElement('style');
+      s.id = 'pause-css';
+      s.textContent = `
+        #lock-hint .ph-item{font-size:15px;font-weight:800;letter-spacing:.26em;color:#c9d6e2;padding:15px 22px;margin:5px 0;
+          background:rgba(255,255,255,0.05);border-left:3px solid transparent;cursor:pointer;transition:all .13s ease;user-select:none;}
+        #lock-hint .ph-item:hover{background:rgba(125,249,255,0.13);border-left-color:#7df9ff;color:#fff;transform:translateX(9px);}
+        #lock-hint .ph-item.red:hover{background:rgba(255,107,107,0.12);border-left-color:#ff6b6b;}
+        @media (max-width:1100px){ #ph-controls{display:none} }`;
+      document.head.appendChild(s);
+    }
     const el = document.createElement('div');
     el.id = 'lock-hint';
     el.style.cssText = `
-      position:absolute; inset:0; display:flex; flex-direction:column;
-      align-items:center; justify-content:center; gap:14px;
-      background:rgba(6,8,12,0.72); backdrop-filter: blur(3px);
-      color:#dfe7f0; text-align:center; z-index:100; cursor:pointer;
+      position:absolute; inset:0; display:flex; z-index:100; cursor:pointer;
+      background:linear-gradient(90deg, rgba(3,6,10,0.94) 0%, rgba(3,6,10,0.84) 30%, rgba(3,6,10,0.38) 62%, rgba(3,6,10,0.14) 100%);
+      font-family:'Segoe UI',system-ui,sans-serif; color:#dfe7f0;
     `;
-    // this overlay IS the de facto pause screen (Esc unlocks → it appears), so it
-    // carries the way back to the main menu. Title follows the active mode.
-    const mode = this.ctx?.mode;
-    const title = mode === 'arena' ? 'ARENA' : mode === 'td' ? 'TOWER DEFENSE' : 'RANGE';
-    const enter = mode === 'arena' ? 'CLICK TO REJOIN THE MATCH' : mode === 'td' ? 'CLICK TO HOLD THE LINE' : 'CLICK TO ENTER THE RANGE';
+    const { title, keys } = this._hintText();
     el.innerHTML = `
-      <div style="font-size:44px; font-weight:800; letter-spacing:0.35em; color:#7df9ff; text-shadow:0 0 24px rgba(125,249,255,0.5);">${title}</div>
-      <div style="font-size:15px; letter-spacing:0.2em; opacity:0.9;">${enter}</div>
-      <div style="font-size:12px; opacity:0.6; line-height:1.9; letter-spacing:0.05em;">
-        WASD move &nbsp;·&nbsp; SPACE jump &nbsp;·&nbsp; CTRL/C slide &nbsp;·&nbsp; LMB fire &nbsp;·&nbsp; RMB aim &nbsp;·&nbsp; R reload<br>
-        1–7 weapons &nbsp;·&nbsp; Q quickswap &nbsp;·&nbsp; TAB weapon wheel &nbsp;·&nbsp; E interact &nbsp;·&nbsp; T inspect<br>
-        K crosshair editor &nbsp;·&nbsp; F debug panel &nbsp;·&nbsp; M range menu &nbsp;·&nbsp; ESC release mouse
+      <div style="width:min(430px,46vw); display:flex; flex-direction:column; justify-content:center; padding-left:54px;">
+        <div style="font-size:12px; letter-spacing:.5em; color:#7df9ff; opacity:.9; margin-bottom:7px;">PAUSED</div>
+        <div id="ph-title" style="font-size:40px; font-weight:900; letter-spacing:.16em; color:#eef7ff; text-shadow:0 0 30px rgba(125,249,255,0.35); margin-bottom:8px;">${title}</div>
+        <div style="height:2px; width:86px; background:#7df9ff; box-shadow:0 0 12px rgba(125,249,255,0.8); margin-bottom:32px;"></div>
+        <div class="ph-item" data-act="resume">RESUME</div>
+        <div class="ph-item" data-act="controls">CONTROLS</div>
+        <div class="ph-item red" data-act="menu">MAIN MENU</div>
+        <div style="margin-top:36px; font-size:10.5px; letter-spacing:.24em; color:#6b7a89;">CLICK ANYWHERE TO RESUME</div>
       </div>
-      <div id="lock-hint-menu" style="
-        margin-top:10px; font-size:13px; font-weight:800; letter-spacing:0.26em; color:#8fa6bb;
-        border:1px solid rgba(125,249,255,0.35); border-radius:8px; padding:10px 26px; cursor:pointer;
-      ">◄ MAIN MENU</div>
+      <div id="ph-controls" style="margin:auto 64px auto auto; max-width:440px; background:rgba(4,8,14,0.6);
+        border:1px solid rgba(125,249,255,0.18); border-radius:10px; padding:20px 28px;
+        font-size:11.5px; line-height:2.1; letter-spacing:.06em; color:#aebccb;">
+        <div style="font-size:10px; font-weight:800; letter-spacing:.32em; color:#7df9ff; margin-bottom:8px;">CONTROLS</div>
+        <span id="ph-keys">${keys}</span>
+      </div>
     `;
     el.classList.add('interactive');
     el.addEventListener('click', () => this.lock());
-    const menuBtn = el.querySelector('#lock-hint-menu');
-    menuBtn.addEventListener('mouseenter', () => { menuBtn.style.color = '#7df9ff'; menuBtn.style.borderColor = '#7df9ff'; });
-    menuBtn.addEventListener('mouseleave', () => { menuBtn.style.color = '#8fa6bb'; menuBtn.style.borderColor = 'rgba(125,249,255,0.35)'; });
-    menuBtn.addEventListener('click', (e) => {
-      e.stopPropagation(); // don't let the overlay's click-to-lock swallow it
-      location.href = location.pathname; // strip ?mode → the main menu
+    el.querySelectorAll('.ph-item').forEach((it) => it.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const act = it.dataset.act;
+      if (act === 'resume') this.lock();
+      else if (act === 'controls') { const c = el.querySelector('#ph-controls'); c.style.display = c.style.display === 'none' ? 'block' : 'none'; }
+      else if (act === 'menu') location.href = location.pathname; // strip ?mode → the main menu
+    }));
+    // parallax: the paused scene drifts opposite the cursor behind the menu
+    el.addEventListener('mousemove', (e) => {
+      if (!this.canvas) return;
+      const nx = e.clientX / window.innerWidth - 0.5, ny = e.clientY / window.innerHeight - 0.5;
+      this.canvas.style.transform = `scale(1.06) translate(${(-nx * 16).toFixed(1)}px, ${(-ny * 10).toFixed(1)}px)`;
     });
     document.getElementById('ui').appendChild(el);
     this._hint = el;
   }
 
+  // title + control lines follow the LIVE state (TD is a lobby mode that starts
+  // after boot, so the pause screen re-reads this every time it shows)
+  _hintText() {
+    const td = !!this.ctx?.tdActive;
+    const mode = this.ctx?.mode;
+    const title = td ? 'TOWER DEFENSE' : mode === 'arena' ? 'ARENA' : 'RANGE';
+    const keys = [
+      'WASD move · SPACE jump · CTRL/C slide · LMB fire · RMB aim · R reload',
+      '1–7 weapons · Q quickswap · TAB weapon wheel · E interact · T inspect',
+      td ? 'B build · E armory / tower tree · G start wave · X fire ultimate'
+         : 'K crosshair editor · F debug panel · M range menu',
+      'ESC release mouse',
+    ].join('<br>');
+    return { title, keys };
+  }
+
   _updateHint() {
-    this._hint.style.display = (!this.locked && this._ui.size === 0) ? 'flex' : 'none';
+    const show = !this.locked && this._ui.size === 0;
+    this._hint.style.display = show ? 'flex' : 'none';
+    if (show) {
+      const { title, keys } = this._hintText();
+      const t = this._hint.querySelector('#ph-title'), k = this._hint.querySelector('#ph-keys');
+      if (t && t.textContent !== title) t.textContent = title;
+      if (k) k.innerHTML = keys;
+    }
+    // blur + drift the live scene behind the pause menu; restore crisp on resume
+    if (this.canvas) {
+      if (!this._canvasFxWired) { this._canvasFxWired = true; this.canvas.style.transition = 'transform .3s ease-out, filter .25s ease'; }
+      this.canvas.style.filter = show ? 'blur(5px) brightness(0.72) saturate(1.1)' : '';
+      if (!show) this.canvas.style.transform = '';
+      else if (!this.canvas.style.transform) this.canvas.style.transform = 'scale(1.06)';
+    }
   }
 }

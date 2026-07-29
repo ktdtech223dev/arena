@@ -137,7 +137,9 @@ export class Game {
   applyDamage(attackerId, victimId, dmg, part, weapon, now) {
     const victim = this.lobby.players.get(victimId);
     if (!victim || !victim.alive || dmg <= 0) return;
-    if (this.mode?.blocksDamage(attackerId, victimId)) return; // no friendly fire in team modes
+    // horde attacks bypass mode PvP blocking (TD enemies bite/spit at players)
+    const horde = String(attackerId || '').startsWith('horde');
+    if (!horde && this.mode?.blocksDamage(attackerId, victimId)) return; // no friendly fire in team modes
     // ATTACKER's active damage/quad powerup multiplies outgoing damage.
     const attacker0 = this.lobby.players.get(attackerId);
     if (attacker0 && attacker0.dmgMult && attacker0.dmgMult !== 1) dmg = Math.round(dmg * attacker0.dmgMult);
@@ -157,6 +159,8 @@ export class Game {
     if (killed) {
       victim.alive = false; victim.respawnAt = now + RESPAWN_MS;
       this.io.emit('death', { id: victimId, by: attackerId, weapon, headshot: part === 'head', respawnInMs: RESPAWN_MS });
+      // TD: dying to the horde bleeds crew gold (stacking per-wave penalty)
+      if (this.mode?.id === 'td') this.tdSim.onPlayerDeath(victimId);
       // ACCOLADES (server owns kills → server owns medals). Distance = attacker↔victim
       // at kill time (drives longshot/trickshot); attacker.move gives the movement fsm.
       const attacker = this.lobby.players.get(attackerId);

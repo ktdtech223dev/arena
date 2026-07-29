@@ -36,7 +36,7 @@ export function applyKit(kit) {
     const tree = WEAPON_TREES[gunId];
     if (!def || !tree) continue;
     let rpm = 1, mag = 1, spread = 1, reload = 1;
-    for (let p = 0; p < 2; p++) for (let t = 0; t < (tiers[p] | 0); t++) {
+    for (let p = 0; p < tree.paths.length; p++) for (let t = 0; t < (tiers[p] | 0); t++) {
       const mod = tree.paths[p][t]?.mod || {};
       if (mod.rpmMult) rpm *= mod.rpmMult;
       if (mod.magMult) mag *= mod.magMult;

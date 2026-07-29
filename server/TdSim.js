@@ -10,6 +10,7 @@ import {
   ENEMY_DEFS, ENEMY_IDS, UNIT_DEFS, UNIT_BY_ID, composeWave, canUpgrade, applyMods,
   tdPointAt, tdPathLength, tdEnemyPos, tdDistToPath, TD_PATH_W, TD_CORE, TD_ARMORY,
   TD_START_GOLD, TD_CORE_HP, TD_SELL_FRAC, TD_SHOP, TD_MAX_GUNS, WEAPON_TREES, PLAYER_UPGRADES,
+  ABILITIES, TD_DEATH_PENALTY,
 } from '../shared/tddata.js';
 
 const BUILD_MIN = TD_PATH_W / 2 + 1.1;
@@ -51,11 +52,15 @@ export class TdSim {
     this._t = 0; this._restartAt = 0;
     this.fx = [];               // batched client fx events (drained onto the 16Hz snap)
     this._enemySnapT = 0;
+    this._waveDeaths = new Map(); // pid -> deaths THIS wave (gold penalty stacks)
+    this._warcryUntil = 0;        // LAST STAND global damage buff expiry (sim time)
   }
 
   kit(pid) {
     let k = this.kits.get(pid);
-    if (!k) { k = { guns: ['pistol'], tiers: { pistol: [0, 0] }, up: { pdmg: 0, pspeed: 0, phealth: 0 } }; this.kits.set(pid, k); }
+    if (!k) { k = { guns: ['pistol'], tiers: { pistol: [0, 0, 0] }, up: { pdmg: 0, pspeed: 0, phealth: 0 } }; this.kits.set(pid, k); }
+    // back-compat: pad any 2-path tier arrays from older saves
+    for (const t of Object.values(k.tiers)) while (t.length < 3) t.push(0);
     return k;
   }
 
@@ -67,7 +72,7 @@ export class TdSim {
     const tree = WEAPON_TREES[base];
     const tiers = k.tiers[base];
     if (tree && tiers) {
-      for (let p = 0; p < 2; p++) for (let t = 0; t < tiers[p]; t++) {
+      for (let p = 0; p < tree.paths.length; p++) for (let t = 0; t < (tiers[p] | 0); t++) {
         const mod = tree.paths[p][t]?.mod;
         if (mod?.dmgMult) m *= mod.dmgMult;
       }
@@ -86,7 +91,7 @@ export class TdSim {
     if (Math.hypot(x - TD_CORE.x, z - TD_CORE.z) < 6 || Math.hypot(x - TD_ARMORY.x, z - TD_ARMORY.z) < 3.5) return { ok: false, why: 'spot' };
     for (const u of this.units) if (Math.hypot(u.x - x, u.z - z) < SPACING) return { ok: false, why: 'spot' };
     this.gold -= def.cost;
-    const u = { uid: NEXT_UID++, defId, def, x, z, tiers: [0, 0], stats: { ...def }, invested: def.cost, owner: player.id, cool: 0, heat: 0, kills: 0, _freezeT: 0, _pulseT: 0 };
+    const u = { uid: NEXT_UID++, defId, def, x, z, tiers: [0, 0, 0], stats: { ...def }, invested: def.cost, owner: player.id, cool: 0, heat: 0, kills: 0, _freezeT: 0, _pulseT: 0, abilityAt: 0 };
     this.units.push(u);
     this.fx.push({ k: 'place', x, z });
     return { ok: true, uid: u.uid };
@@ -94,7 +99,8 @@ export class TdSim {
 
   upgradeUnit(player, uid, pathIdx) {
     const u = this.units.find((x) => x.uid === uid);
-    if (!u || (pathIdx !== 0 && pathIdx !== 1)) return { ok: false };
+    if (!u || !(pathIdx >= 0 && pathIdx <= 2)) return { ok: false };
+    if (!u.def.paths[pathIdx]) return { ok: false };
     if (!canUpgrade(u.tiers, pathIdx)) return { ok: false, why: 'locked' };
     const up = u.def.paths[pathIdx][u.tiers[pathIdx]];
     if (!up || this.gold < up.cost) return { ok: false, why: 'gold' };
@@ -126,15 +132,15 @@ export class TdSim {
     }
     this.gold -= item.cost;
     k.guns.push(weaponId);
-    if (!k.tiers[weaponId]) k.tiers[weaponId] = [0, 0];
+    if (!k.tiers[weaponId]) k.tiers[weaponId] = [0, 0, 0];
     return { ok: true, guns: k.guns };
   }
 
   upgradeWeapon(player, weaponId, pathIdx) {
     const k = this.kit(player.id);
     const tree = WEAPON_TREES[weaponId];
-    if (!tree || !k.guns.includes(weaponId) || (pathIdx !== 0 && pathIdx !== 1)) return { ok: false };
-    const tiers = k.tiers[weaponId] || (k.tiers[weaponId] = [0, 0]);
+    if (!tree || !k.guns.includes(weaponId) || !(pathIdx >= 0 && pathIdx <= 2) || !tree.paths[pathIdx]) return { ok: false };
+    const tiers = k.tiers[weaponId] || (k.tiers[weaponId] = [0, 0, 0]);
     if (!canUpgrade(tiers, pathIdx)) return { ok: false, why: 'locked' };
     const up = tree.paths[pathIdx][tiers[pathIdx]];
     if (!up || this.gold < up.cost) return { ok: false, why: 'gold' };
@@ -162,8 +168,64 @@ export class TdSim {
     this._queue = [];
     for (const m of this._comp.mix) for (let i = 0; i < m.count; i++) this._queue.push({ id: m.id, gapS: m.gapS });
     this._spawnT = 0.6;
+    this._waveDeaths.clear();   // death penalty stacks reset each wave
     this.game.io.emit('td_wave', { wave: this.wave, count: this._queue.length, queen: this.wave % 10 === 0 });
     return { ok: true };
+  }
+
+  /** Fire a tier-3 tower ULTIMATE (path C capstones carry stats.ability). */
+  ability(player, uid) {
+    const u = this.units.find((x) => x.uid === uid);
+    if (!u || !u.stats.ability) return { ok: false };
+    if (this._t < u.abilityAt) return { ok: false, why: 'cooldown' };
+    const spec = ABILITIES[u.stats.ability];
+    if (!spec) return { ok: false };
+    u.abilityAt = this._t + (u.stats.abilityCd || 45);
+    switch (u.stats.ability) {
+      case 'barrage':      // rolling artillery over the whole lane for durS
+        u._barrage = { left: spec.shots, t: 0, gap: spec.durS / spec.shots, dmg: spec.shotDmg, splash: spec.splash };
+        break;
+      case 'iceage':       // flash-freeze EVERY enemy on the map
+        for (const e of this.enemies) if (e.hp > 0) e.fx.freezeUntil = this._t + spec.freezeS;
+        this.fx.push({ k: 'freeze', x: u.x, z: u.z, r: 60 });
+        break;
+      case 'warcry':       // global tower damage buff
+        this._warcryUntil = this._t + spec.durS;
+        this.fx.push({ k: 'warcry', x: u.x, z: u.z });
+        break;
+      case 'singularity':  // yank the horde backwards and slow it
+        for (const e of this.enemies) {
+          if (e.hp <= 0) continue;
+          e.dist = Math.max(0, e.dist - spec.pullM);
+          e.fx.slow = 1 - spec.slow; e.fx.slowUntil = this._t + spec.slowS;
+        }
+        this.fx.push({ k: 'pulse', x: u.x, z: u.z, r: 30 });
+        break;
+      case 'sunstrike': {  // orbital lance on the beefiest enemy
+        let best = null, bp = null;
+        for (const e of this.enemies) if (e.hp > 0 && (!best || e.hp > best.hp)) { best = e; bp = tdEnemyPos(e.id, e.def, e.dist, this._t); }
+        if (best) {
+          this.fx.push({ k: 'boom', x: bp.x, y: bp.y + 1, z: bp.z, r: spec.splash, sun: 1 });
+          for (const c of this._enemiesNear(bp.x, bp.z, spec.splash)) this._unitHit(u, c.e, spec.dmg * (c.e === best ? 1 : 0.6));
+        }
+        break; }
+    }
+    this.fx.push({ k: 'ult', u: u.uid, a: u.stats.ability });
+    return { ok: true, cdS: u.stats.abilityCd || 45 };
+  }
+
+  /** Called by Game when the horde kills a player: the crew bleeds gold —
+   *  5% of the pool, stacking +5% per death in the SAME wave (cap 50%). */
+  onPlayerDeath(pid) {
+    const deaths = (this._waveDeaths.get(pid) || 0) + 1;
+    this._waveDeaths.set(pid, deaths);
+    const frac = Math.min(0.5, TD_DEATH_PENALTY * deaths);
+    const loss = Math.round(this.gold * frac);
+    if (loss > 0) {
+      this.gold -= loss;
+      this.fx.push({ k: 'penalty', pid, g: loss, pct: Math.round(frac * 100) });
+    }
+    return loss;
   }
 
   // ---------------------------------------------------------- player shots --
@@ -302,6 +364,48 @@ export class TdSim {
     }
     this.enemies = this.enemies.filter((e) => e.hp > 0);
 
+    // hostile horde: bruisers swipe / spitters+queens spit at players in reach
+    for (const e of this.enemies) {
+      const atk = e.def.attack;
+      if (!atk || e.phased) continue;
+      if (this._t < (e.fx.stunUntil || 0) || this._t < (e.fx.freezeUntil || 0)) continue;
+      e._atkT = (e._atkT || 0) - dt;
+      if (e._atkT > 0) continue;
+      const p = tdEnemyPos(e.id, e.def, e.dist, this._t);
+      let best = null, bd = atk.range;
+      for (const pl of players.values()) {
+        if (!pl.alive) continue;
+        const dd = Math.hypot(pl.move.px - p.x, pl.move.pz - p.z);
+        if (dd < bd) { bd = dd; best = pl; }
+      }
+      if (!best) continue;
+      e._atkT = atk.rateS;
+      this.fx.push({ k: 'eatk', x: p.x, y: p.y + e.def.size * 1.3, z: p.z, tx: best.move.px, ty: best.move.py + 1.1, tz: best.move.pz, r: atk.ranged ? 1 : 0 });
+      this.game.applyDamage('horde:' + e.defId, best.id, atk.dmg, 'body', e.def.name, now);
+    }
+
+    // rolling ARTILLERY BARRAGE ultimates (mortar C3)
+    for (const u of this.units) {
+      const b = u._barrage;
+      if (!b) continue;
+      b.t -= dt;
+      if (b.t > 0) continue;
+      b.t = b.gap;
+      let x, y = 0.2, z;
+      const alive = this.enemies;
+      if (alive.length) {
+        const e = alive[Math.floor(Math.random() * alive.length)];
+        const p = tdEnemyPos(e.id, e.def, e.dist, this._t);
+        x = p.x; y = p.y; z = p.z;
+      } else {
+        const p = tdPointAt(Math.random() * tdPathLength());
+        x = p.x; z = p.z;
+      }
+      for (const c of this._enemiesNear(x, z, b.splash)) this._unitHit(u, c.e, b.dmg);
+      this.fx.push({ k: 'mortar', u: u.uid, x, y, z, r: b.splash });
+      if (--b.left <= 0) u._barrage = null;
+    }
+
     // units attack
     for (const u of this.units) this._unitTick(u, dt);
 
@@ -318,6 +422,7 @@ export class TdSim {
       const bonus = this._comp.bonus + Math.round(this.gold * interest) + waveBonus;
       this.gold += bonus;
       this.game.io.emit('td_wavedone', { wave: this.wave, bonus });
+      if (this.onCheckpoint) this.onCheckpoint(this.saveState()); // solo autosave
     }
   }
 
@@ -336,7 +441,51 @@ export class TdSim {
   _gameOver() {
     this.phase = 'over';
     this._restartAt = Date.now() + RESTART_MS;
+    if (this.onRunOver) this.onRunOver(); // a lost run deletes its autosave
     this.game.io.emit('td_over', { wave: this.wave, restartInMs: RESTART_MS });
+  }
+
+  // ------------------------------------------------------------ solo saves --
+  /** Snapshot a run for solo save files (build-phase state only). */
+  saveState() {
+    return {
+      v: 2, wave: this.wave, gold: Math.round(this.gold),
+      coreHp: Math.round(this.coreHp), coreMax: this.coreMax,
+      units: this.units.map((u) => ({ defId: u.defId, x: +u.x.toFixed(2), z: +u.z.toFixed(2), tiers: u.tiers.slice(), invested: u.invested })),
+      kits: [...this.kits.values()].slice(0, 1), // solo → the one human kit
+    };
+  }
+
+  /** Rebuild a run from a save (upgrade mods re-applied in path order). */
+  restoreState(s, pid) {
+    this.reset();
+    this.wave = s.wave | 0;
+    this.gold = s.gold | 0;
+    this.coreMax = s.coreMax || TD_CORE_HP;
+    this.coreHp = Math.min(this.coreMax + 100, s.coreHp || TD_CORE_HP);
+    for (const su of s.units || []) {
+      const def = UNIT_BY_ID[su.defId];
+      if (!def) continue;
+      const u = { uid: NEXT_UID++, defId: su.defId, def, x: +su.x, z: +su.z, tiers: [0, 0, 0], stats: { ...def }, invested: su.invested || def.cost, owner: pid, cool: 0, heat: 0, kills: 0, _freezeT: 0, _pulseT: 0, abilityAt: 0 };
+      const want = (su.tiers || []).map((n) => Math.max(0, Math.min(3, n | 0)));
+      for (let p = 0; p < def.paths.length; p++) {
+        for (let i = 0; i < (want[p] || 0); i++) {
+          const up = def.paths[p][i];
+          if (!up) break;
+          u.tiers[p]++;
+          applyMods(u.stats, up.mod);
+        }
+      }
+      this.units.push(u);
+    }
+    const k = s.kits?.[0];
+    if (k) {
+      this.kits.set(pid, {
+        guns: Array.isArray(k.guns) && k.guns.length ? k.guns.slice(0, TD_MAX_GUNS) : ['pistol'],
+        tiers: Object.fromEntries(Object.entries(k.tiers || {}).map(([g, t]) => [g, [...(t || []), 0, 0, 0].slice(0, 3).map((n) => Math.max(0, Math.min(3, n | 0)))])),
+        up: { pdmg: 0, pspeed: 0, phealth: 0, ...(k.up || {}) },
+      });
+    }
   }
 
   // ---- unit behaviors (positions are plain {x,z}; enemy pos via shared math) --
@@ -351,7 +500,8 @@ export class TdSim {
   }
 
   _buffAt(u) {
-    let dmg = 1, rate = 1, crit = 0, critM = 1.8;
+    let dmg = this._t < this._warcryUntil ? ABILITIES.warcry.dmgMult : 1; // LAST STAND
+    let rate = 1, crit = 0, critM = 1.8;
     for (const o of this.units) {
       if (o === u || !o.stats.aura) continue;
       if (Math.hypot(o.x - u.x, o.z - u.z) > o.stats.range) continue;
@@ -521,7 +671,10 @@ export class TdSim {
       Math.round((e.hp / e.maxHp) * 100), e.maxShield ? Math.round((e.shield / e.maxShield) * 100) : 0,
       e.phased ? 1 : 0,
     ]);
-    const units = this.units.map((u) => [u.uid, u.defId, +u.x.toFixed(1), +u.z.toFixed(1), u.tiers[0], u.tiers[1], u.owner, u.invested]);
+    const units = this.units.map((u) => [
+      u.uid, u.defId, +u.x.toFixed(1), +u.z.toFixed(1), u.tiers[0], u.tiers[1], u.owner, u.invested,
+      u.tiers[2] | 0, u.stats.ability ? +Math.max(0, u.abilityAt - this._t).toFixed(1) : -1, // appended: path-C tier + ult cooldown
+    ]);
     const fx = this.fx;
     this.fx = [];
     return { enemies, units, fx };

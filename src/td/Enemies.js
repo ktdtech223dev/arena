@@ -50,6 +50,10 @@ function buildZombie(def) {
   if (def === ENEMY_DEFS.brute) box(g, dark, 0.9 * s, 0.3 * s, 0.5 * s, 0, 1.5 * s, 0);
   if (def === ENEMY_DEFS.bloater) parts.belly = box(g, mat(0x7a8a2a, { emissive: 0x9fe86a, emissiveI: 0.5 }), 0.7 * s, 0.5 * s, 0.5 * s, 0, 0.85 * s, 0.1 * s);
   if (def === ENEMY_DEFS.screamer) parts.maw = box(g, gore, 0.16 * s, 0.2 * s, 0.1 * s, 0, 1.55 * s, 0.2 * s);
+  if (def === ENEMY_DEFS.spitter) { // bloated acid throat sac — reads as RANGED
+    parts.belly = box(g, mat(0x4a6a12, { emissive: 0x9fe86a, emissiveI: 0.9 }), 0.3 * s, 0.3 * s, 0.26 * s, 0, 1.32 * s, 0.16 * s);
+    box(g, mat(0x2a3a0a, { emissive: 0x88ff2a, emissiveI: 0.6 }), 0.14 * s, 0.5 * s, 0.14 * s, 0, 0.95 * s, 0.2 * s);
+  }
   return { group: g, parts };
 }
 

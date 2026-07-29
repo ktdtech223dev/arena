@@ -3,7 +3,7 @@
 // /health route, and runs the always-on lobby + 60 Hz authoritative sim.
 import http from 'node:http';
 import path from 'node:path';
-import { promises as fs, existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
+import { promises as fs, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
 import express from 'express';
 import { Server as SocketServer } from 'socket.io';
 import { TICK_RATE, SNAP_RATE, DEFAULT_ARENA, WEAPON_COMBAT, GRENADE } from '../shared/constants.js';
@@ -28,6 +28,8 @@ const DATA_DIR = resolveDataDir();
 const PROGRESS_DIR = path.join(DATA_DIR, 'progress');
 const MAPS_DIR = path.join(DATA_DIR, 'maps');
 mkdirSync(MAPS_DIR, { recursive: true }); // custom-map persistence (Railway volume)
+const TD_DIR = path.join(DATA_DIR, 'td');
+mkdirSync(TD_DIR, { recursive: true });   // solo Tower Defense run saves
 const stats = new StatsStore(path.join(DATA_DIR, 'stats')); // per-profile stats
 const safeId = (raw) => (String(raw || 'local').slice(0, 64).replace(/[^a-zA-Z0-9_-]/g, '') || 'local');
 
@@ -179,6 +181,20 @@ let radioStation = 'off';
 const votes = new Map(); // 'kind:id' -> Set(playerSocketIds)
 
 function humanCount() { let n = 0; for (const p of lobby.players.values()) if (!p.isBot) n++; return n; }
+const soloHuman = () => (humanCount() === 1 ? [...lobby.players.values()].find((p) => !p.isBot) : null);
+const tdSavePath = (pl) => path.join(TD_DIR, safeId(pl.profileId) + '.json');
+
+// solo TD autosave: every cleared wave banks the run under the lone human's
+// profile; losing the core (or starting fresh) deletes the save.
+game.tdSim.onCheckpoint = (state) => {
+  const solo = soloHuman();
+  if (!solo) return;
+  try { writeFileSync(tdSavePath(solo), JSON.stringify(state)); } catch { /* volume hiccup — skip this checkpoint */ }
+};
+game.tdSim.onRunOver = () => {
+  const solo = soloHuman();
+  if (solo) { try { unlinkSync(tdSavePath(solo)); } catch { /* no save to clear */ } }
+};
 
 function castVote(kind, id, player) {
   const key = `${kind}:${id}`;
@@ -289,6 +305,28 @@ io.on('connection', (socket) => {
   tdOp('td_buyweapon', (m) => game.tdSim.buyWeapon(player, m.id, m.drop));
   tdOp('td_wupgrade', (m) => game.tdSim.upgradeWeapon(player, m.id, m.path | 0));
   tdOp('td_selfup', (m) => game.tdSim.selfUpgrade(player, m.id));
+  tdOp('td_ability', (m) => game.tdSim.ability(player, m.uid | 0));
+  // solo saves: query on entry → offer RESUME / NEW RUN
+  tdOp('td_querysave', () => {
+    if (humanCount() !== 1) return { ok: false, why: 'coop' };
+    try { const s = JSON.parse(readFileSync(tdSavePath(player), 'utf8')); return { ok: true, wave: s.wave | 0, gold: s.gold | 0 }; }
+    catch { return { ok: false, why: 'none' }; }
+  });
+  tdOp('td_resume', () => {
+    if (humanCount() !== 1) return { ok: false, why: 'coop' };
+    try {
+      const s = JSON.parse(readFileSync(tdSavePath(player), 'utf8'));
+      game.tdSim.restoreState(s, player.id); // next heavy snap rebuilds the client
+      io.emit('td_reset', {});
+      return { ok: true, wave: s.wave | 0 };
+    } catch { return { ok: false, why: 'none' }; }
+  });
+  tdOp('td_new', () => {
+    if (humanCount() === 1) { try { unlinkSync(tdSavePath(player)); } catch { /* nothing saved */ } }
+    game.tdSim.reset();
+    io.emit('td_reset', {});
+    return { ok: true };
+  });
   // radio: ALWAYS a vote (even solo — floor(1/2)+1 = 1 → instant for one player).
   socket.on('vote', (v) => {
     if (!player || !v || typeof v.id !== 'string') return;

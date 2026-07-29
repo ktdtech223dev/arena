@@ -41,6 +41,7 @@ const FOOTSTEPS = ['footstep_01', 'footstep_02', 'footstep_03', 'footstep_04'];
 export class ArenaMode {
   constructor(ctx) {
     this.ctx = ctx;
+    window.__arena = this; // debug/testing handle (harmless in prod)
 
     // --- map-driven world: the client renders the chosen map + derives the LIVE
     // collision world (open doors/broken walls removed, platforms placed) that
@@ -163,10 +164,12 @@ export class ArenaMode {
 
   // enter/leave the co-op TD presentation layer
   _setTdActive(on) {
+    this.ctx.tdActive = on; // pause screen re-titles itself from this
     if (on && !this.tdView) {
       this.tdView = new TdView(this.ctx, this);
       this.tdUi = new TdUi(this.ctx, this.conn, this.tdView);
       NG.setPresence({ mode: 'TD', status: 'holding the line' });
+      this.conn.tdSend('td_querysave', {}); // solo: offer to RESUME a saved run
     } else if (!on && this.tdView) {
       this.tdView.dispose(); this.tdView = null;
       this.tdUi.dispose(); this.tdUi = null;
@@ -178,6 +181,7 @@ export class ArenaMode {
 
   // resolve a player's { name, color } for feed/killcam
   _info(id) {
+    if (String(id).startsWith('horde:')) return { name: `${String(id).slice(6).toUpperCase()} (HORDE)`, color: 0x9fe86a };
     if (id === this.conn.id && this.myCrew) return { name: this.myCrew.name, color: this.myCrew.color };
     if (this.playerInfo.has(id)) return this.playerInfo.get(id);
     const rp = this.interp.remotes.get(id);

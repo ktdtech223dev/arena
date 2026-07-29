@@ -31,18 +31,39 @@ function cyl(parent, m, r0, r1, h, x, y, z, seg = 10) {
 }
 
 /** Build a tower model for (def, tiers). Returns { group, parts:{yawNode,spinner?} } */
-export function buildUnitModel(def, tiers = [0, 0]) {
+export function buildUnitModel(def, tiers = [0, 0, 0]) {
   const polished = POLISHED[def.id];
+  let m = null;
   if (polished) {
-    try { return polished(THREE, tiers); } catch { /* fall back to the generic chassis */ }
+    try { m = polished(THREE, tiers); } catch { /* fall back to the generic chassis */ }
   }
-  return buildGenericUnitModel(def, tiers);
+  if (!m) m = buildGenericUnitModel(def, tiers);
+  // PATH C crest: polished builders predate the third path, so the C tiers get
+  // a shared marker — violet gem pips, and a slow halo ring at the C3 capstone.
+  const tc = tiers[2] | 0;
+  if (tc > 0) {
+    const gem = new THREE.MeshStandardMaterial({ color: 0x2a1440, roughness: 0.35, metalness: 0.5, emissive: new THREE.Color(0xc96af0), emissiveIntensity: 1.3 });
+    for (let i = 0; i < tc; i++) {
+      const pip = new THREE.Mesh(new THREE.OctahedronGeometry(0.11), gem);
+      const a = -0.5 + i * 0.55;
+      pip.position.set(Math.sin(a) * 0.72, 0.34, Math.cos(a) * 0.72);
+      m.group.add(pip);
+    }
+    if (tc >= 3) {
+      const halo = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.045, 8, 26), gem);
+      halo.position.y = 2.35; halo.rotation.x = Math.PI / 2;
+      m.group.add(halo);
+      m.parts = m.parts || {};
+      if (!m.parts.spinner) m.parts.spinner = halo; // idle spin sells the ultimate
+    }
+  }
+  return m;
 }
 
-function buildGenericUnitModel(def, tiers = [0, 0]) {
+function buildGenericUnitModel(def, tiers = [0, 0, 0]) {
   const g = new THREE.Group();
   const acc = ACCENT[def.role] || 0xffffff;
-  const t3 = tiers[0] >= 3 || tiers[1] >= 3;
+  const t3 = tiers.some((t) => t >= 3);
   const glowC = t3 ? T3_GLOW : acc;
   const body = mat(0x2a3340, { metal: 0.5, rough: 0.45 });
   const glow = mat(0x101820, { emissive: glowC, emissiveI: 1.1 });

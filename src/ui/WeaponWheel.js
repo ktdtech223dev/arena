@@ -38,7 +38,8 @@ const CSS = `
 `;
 
 // tiny primitive gun silhouettes, drawn centered at (x, y) in a ~48x22 box
-function drawGlyph(g, id, x, y, color) {
+// (exported: the TD armory reuses these for its shop rows and upgrade cards)
+export function drawGlyph(g, id, x, y, color) {
   g.save();
   g.translate(x, y);
   g.fillStyle = color;
@@ -80,6 +81,7 @@ function drawGlyph(g, id, x, y, color) {
       g.restore();
       break;
     case 'sniper':
+    case 'dmr':
       g.fillRect(-24, -3, 9, 6);      // stock
       g.fillRect(-15, -4, 26, 5);     // body
       g.fillRect(11, -3, 13, 3);      // long barrel
@@ -87,6 +89,16 @@ function drawGlyph(g, id, x, y, color) {
       g.fillRect(-9, -8, 2, 3);       // scope cap
       g.fillRect(6, -8, 2, 3);        // scope cap
       g.fillRect(-2, 1, 5, 8);        // mag
+      break;
+    case 'revolver':
+      g.fillRect(-8, -7, 20, 5);      // barrel + frame
+      g.fillRect(-2, -8, 8, 8);       // cylinder
+      g.fillRect(12, -6, 3, 3);       // muzzle
+      g.save();
+      g.translate(-5, -2);
+      g.rotate(0.35);
+      g.fillRect(0, 0, 6, 10);        // curved grip
+      g.restore();
       break;
     case 'arclance':
     case 'hornet':

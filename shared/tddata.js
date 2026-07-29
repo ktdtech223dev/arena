@@ -89,6 +89,7 @@ export function composeWave(n) {
     if (n >= 2) add('sprinter', n * 1.2, 0.42);
     if (n >= 2) add('skitterer', n * 1.0, 0.34);
     if (n >= 3) add('drone', n * 0.8, 0.75);
+    if (n >= 3) add('spitter', n / 2.5, 1.2);
     if (n >= 4) add('screamer', n / 3, 1.6);
     if (n >= 5) add('stalker', n / 3, 1.3);
     if (n >= 6) add('warden', n / 4, 1.9);
@@ -257,13 +258,96 @@ export const UNIT_DEFS = [
        { name: 'SOLAR CHOIR', cost: 1040, mod: { beams: 4, beamDps: +10 } }],
     ] },
 ];
+// ---------------------------------------------------------------------------
+// PATH C (the third path, BTD-style) for every tower — merged onto the defs at
+// load so the base entries above stay untouched. Five capstones are ACTIVE
+// ULTIMATES: the C3 upgrade grants `ability` (+ cooldown) triggered from the
+// ability bar (server-executed via td_ability).
+// ---------------------------------------------------------------------------
+const PATH_C = {
+  gatling: [
+    { name: 'SUPPRESSOR SHROUD', cost: 130, mod: { range: +3 } },
+    { name: 'TARGETING SERVOS', cost: 300, mod: { critChance: 0.15, critMult: 2 } },
+    { name: 'DEATH SENTINEL', cost: 700, mod: { critChance: 0.3, rate: +1.5 } }],
+  railcannon: [
+    { name: 'SPOTTER LINK', cost: 220, mod: { range: +6 } },
+    { name: 'EXECUTIONER ROUNDS', cost: 420, mod: { critChance: 0.3, critMult: 3 } },
+    { name: 'DECAPITATOR', cost: 900, mod: { targeting: 'strong', dmg: +80 } }],
+  mortar: [
+    { name: 'FIRE CONTROL POST', cost: 240, mod: { range: +8 } },
+    { name: 'HEAVY SHELLS', cost: 460, mod: { dmg: +25 } },
+    { name: '☄ ARTILLERY BARRAGE', cost: 980, mod: { ability: 'barrage', abilityCd: 45 } }],
+  tesla: [
+    { name: 'CONDUCTIVE FIELD', cost: 190, mod: { range: +3 } },
+    { name: 'ION CASCADE', cost: 380, mod: { dmg: +12, chain: +1 } },
+    { name: 'MJOLNIR PROTOCOL', cost: 800, mod: { dmg: +25, rate: +0.6 } }],
+  cryo: [
+    { name: 'PERMAFROST BED', cost: 180, mod: { range: +2 } },
+    { name: 'GLACIAL MASS', cost: 380, mod: { slow: 0.55 } },
+    { name: '❄ ICE AGE', cost: 820, mod: { ability: 'iceage', abilityCd: 60 } }],
+  acid: [
+    { name: 'PRESSURE PUMPS', cost: 190, mod: { rate: +0.5 } },
+    { name: 'CAUSTIC SATURATION', cost: 390, mod: { acidDps: +9 } },
+    { name: 'BLACK BILE', cost: 800, mod: { acidDps: +16, vulnMult: 1.3 } }],
+  hive: [
+    { name: 'LONG-RANGE ANTENNA', cost: 230, mod: { range: +6 } },
+    { name: 'REPAIR CELLS', cost: 450, mod: { dmg: +6, rate: +0.3 } },
+    { name: 'DRONE CARRIER', cost: 940, mod: { drones: +3, range: +4 } }],
+  sniper: [
+    { name: 'SUPPRESSED BARREL', cost: 210, mod: { rate: +0.15 } },
+    { name: 'TANDEM LOADER', cost: 430, mod: { rate: +0.3 } },
+    { name: 'FIRING SQUAD', cost: 900, mod: { rate: +0.5, dmg: +20 } }],
+  banner: [
+    { name: 'HONOR GUARD', cost: 200, mod: { buffDmg: +0.05 } },
+    { name: 'MARTIAL HYMN', cost: 400, mod: { buffRate: 1.2 } },
+    { name: '⚔ LAST STAND', cost: 860, mod: { ability: 'warcry', abilityCd: 60 } }],
+  overclocker: [
+    { name: 'COOLANT INJECTION', cost: 210, mod: { buffRate: +0.1 } },
+    { name: 'PARALLEL BUS', cost: 420, mod: { range: +3, buffRate: +0.1 } },
+    { name: 'CHRONO FIELD', cost: 880, mod: { buffRate: +0.25 } }],
+  depot: [
+    { name: 'FIELD RATIONS', cost: 190, mod: { range: +3 } },
+    { name: 'ARMORER STATION', cost: 380, mod: { playerDmgMult: 1.25 } },
+    { name: 'WAR ECONOMY', cost: 800, mod: { playerDmgMult: 1.5, critChance: 0.2, auraCrit: true } }],
+  shieldgen: [
+    { name: 'HARDENED EMITTER', cost: 240, mod: { coreShield: +15 } },
+    { name: 'PHASE LATTICE', cost: 470, mod: { coreShield: +25, coreRegen: 1 } },
+    { name: 'FORTRESS HEART', cost: 940, mod: { coreShield: +50, coreRegen: 2 } }],
+  gravwell: [
+    { name: 'TIDAL LENSING', cost: 210, mod: { slow: 0.35 } },
+    { name: 'DENSE CORE', cost: 420, mod: { pull: +2, auraDps: 6 } },
+    { name: '🌀 SINGULARITY', cost: 880, mod: { ability: 'singularity', abilityCd: 50 } }],
+  bounty: [
+    { name: 'SALVAGE CREW', cost: 220, mod: { goldMult: +0.1 } },
+    { name: 'TRADE ROUTES', cost: 440, mod: { waveBonus: 30 } },
+    { name: 'EL DORADO', cost: 920, mod: { goldMult: +0.2, interest: 0.06 } }],
+  plasma: [
+    { name: 'FOCUSING GIMBAL', cost: 260, mod: { range: +4 } },
+    { name: 'CORONA TAP', cost: 520, mod: { beamDps: +14 } },
+    { name: '☀ SUNSTRIKE', cost: 1060, mod: { ability: 'sunstrike', abilityCd: 45 } }],
+};
+for (const d of UNIT_DEFS) if (PATH_C[d.id]) d.paths.push(PATH_C[d.id]);
+
 export const UNIT_BY_ID = Object.fromEntries(UNIT_DEFS.map((d) => [d.id, d]));
 
-// BTD-style lockout: a path at tier ≥2 caps the other at tier 1.
+// active ultimates: server-side execution parameters
+export const ABILITIES = {
+  barrage:     { name: 'ARTILLERY BARRAGE', shots: 12, shotDmg: 55, splash: 3.5, durS: 3 },
+  iceage:      { name: 'ICE AGE', freezeS: 2.8 },
+  warcry:      { name: 'LAST STAND', dmgMult: 1.6, durS: 6 },
+  singularity: { name: 'SINGULARITY', pullM: 9, slow: 0.5, slowS: 3 },
+  sunstrike:   { name: 'SUNSTRIKE', dmg: 420, splash: 4 },
+};
+
+// BTD6-style THREE-path lockout (adapted to 3 tiers): you can take ONE path deep
+// (to tier 3), a SECOND path to tier 1 only, and the THIRD path locks once two
+// paths have any points — max spread 3/1/0.
 export function canUpgrade(tiers, pathIdx) {
-  const mine = tiers[pathIdx], other = tiers[1 - pathIdx];
+  const mine = tiers[pathIdx] | 0;
   if (mine >= 3) return false;
-  if (other >= 2 && mine >= 1) return false;
+  const used = tiers.filter((t) => (t | 0) > 0).length;
+  if (mine === 0 && used >= 2) return false;                       // third path locked
+  if (mine >= 1 && tiers.some((t, i) => i !== pathIdx && (t | 0) > 1)) return false; // one deep path only
   return true;
 }
 
@@ -336,6 +420,39 @@ export const WEAPON_TREES = {
     [T('COOLANT LOOP', 340, { rpmMult: 1.2, magMult: 1.3 }), T('TWIN EMITTERS', 680, { rpmMult: 1.45 }), T('INFINITE BEAM', 1350, { magMult: 2, rpmMult: 1.6 })],
   ] },
 };
+
+// third path for every GUN tree (merged like the towers')
+const WEAPON_PATH_C = {
+  pistol:   [T('SNAKE EYES', 130, { spreadMult: 0.8 }), T('LUCKY SEVEN', 260, { dmgMult: 1.2, rpmMult: 1.1 }), T('ACE IN THE HOLE', 540, { dmgMult: 1.45, spreadMult: 0.65 })],
+  smg:      [T('EXTENDED RAILS', 170, { spreadMult: 0.85 }), T('TWIN LINK', 350, { magMult: 1.5 }), T('HORNET NEST', 700, { rpmMult: 1.3, dmgMult: 1.3 })],
+  shotgun:  [T('SHELL CADDY', 190, { reloadMult: 0.8 }), T('OVERBORE', 390, { dmgMult: 1.3 }), T('DOOMSDAY DRUM', 780, { magMult: 1.8, reloadMult: 0.7 })],
+  revolver: [T('BALANCED CYLINDER', 180, { spreadMult: 0.8 }), T('QUICK DRAW', 370, { rpmMult: 1.25, reloadMult: 0.8 }), T('GUNSLINGER', 760, { rpmMult: 1.5, dmgMult: 1.3 })],
+  ar:       [T('COMPENSATOR', 210, { spreadMult: 0.85 }), T('SELECT FIRE', 430, { rpmMult: 1.25, spreadMult: 0.85 }), T('WARFIGHTER', 860, { dmgMult: 1.4, rpmMult: 1.2 })],
+  burst:    [T('RECOIL DAMPER', 230, { spreadMult: 0.8 }), T('OVERPRESSURE SEAR', 460, { dmgMult: 1.35 }), T('TRIPLE THREAT', 900, { dmgMult: 1.5, rpmMult: 1.3 })],
+  dmr:      [T('BIPOD GRIP', 240, { spreadMult: 0.75 }), T('CHAMBER POLISH', 480, { rpmMult: 1.3 }), T('EXECUTIONER', 960, { dmgMult: 1.6, spreadMult: 0.65 })],
+  sniper:   [T('SPOTTER DRONE', 290, { spreadMult: 0.7 }), T('PENETRATOR SPIKES', 580, { dmgMult: 1.5 }), T('ONE SHOT, ONE HORDE', 1160, { dmgMult: 2.0 })],
+  arclance: [T('BEAM SPLITTER', 330, { spreadMult: 0.8 }), T('CAPACITOR BANK', 660, { magMult: 1.5, dmgMult: 1.25 }), T('SOLAR FLARE', 1300, { dmgMult: 1.8, rpmMult: 1.3 })],
+};
+for (const [id, tree] of Object.entries(WEAPON_TREES)) if (WEAPON_PATH_C[id]) tree.paths.push(WEAPON_PATH_C[id]);
+
+// ---------------------------------------------------------------------------
+// HOSTILE HORDE — several enemy types ATTACK PLAYERS in reach (PvE damage):
+// melee swipes from bruisers, ranged spit from spitters/queens. Dying costs the
+// crew gold: 5% of the pool per death, stacking +5% per death in the same wave.
+// ---------------------------------------------------------------------------
+const ENEMY_ATTACKS = {
+  brute:    { dmg: 18, range: 2.6, rateS: 1.4 },
+  screamer: { dmg: 8,  range: 4.0, rateS: 1.8 },
+  warden:   { dmg: 12, range: 6.0, rateS: 2.0, ranged: true },
+  stalker:  { dmg: 15, range: 2.6, rateS: 1.1 },
+  queen:    { dmg: 26, range: 11,  rateS: 2.4, ranged: true },
+};
+for (const [id, atk] of Object.entries(ENEMY_ATTACKS)) if (ENEMY_DEFS[id]) ENEMY_DEFS[id].attack = atk;
+// SPITTER — dedicated anti-player zombie (appended LAST: wire indices stay stable)
+ENEMY_DEFS.spitter = { family: 'zombie', name: 'SPITTER', hp: 85, speed: 1.5, armor: 0, coreDmg: 5, bounty: 8, size: 1.05, attack: { dmg: 11, range: 13, rateS: 2.2, ranged: true } };
+ENEMY_IDS.push('spitter');
+
+export const TD_DEATH_PENALTY = 0.05;   // of the crew pool, ×deaths this wave (cap 50%)
 
 // player self-upgrades (unchanged tracks, pricier)
 export const PLAYER_UPGRADES = [
