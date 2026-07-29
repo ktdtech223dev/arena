@@ -14,11 +14,15 @@ const BASE_URL = process.env.ARENA_URL || 'https://range-production-bd9e.up.rail
 // Forward it to the page as a query param — the renderer (remote URL,
 // contextIsolation, no preload) can't read process.env itself.
 function gameUrl() {
-  const p = process.env.NGAMES_PROFILE;
-  if (!p) return BASE_URL;
   try {
     const u = new URL(BASE_URL);
-    u.searchParams.set('ngames_profile', p);
+    // Electron's WebGPU (enable-unsafe-webgpu) miscompiles the game's shader
+    // pipelines on some machines (GPUPipelineError → black screen). Boot the
+    // desktop app straight onto the WebGL2 backend — no first-load flicker.
+    // (The client also self-heals via a runtime fallback for older exes.)
+    u.searchParams.set('webgl', '1');
+    const p = process.env.NGAMES_PROFILE; // set by the N Games Launcher
+    if (p) u.searchParams.set('ngames_profile', p);
     return u.toString();
   } catch { return BASE_URL; }
 }

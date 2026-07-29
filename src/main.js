@@ -86,7 +86,25 @@ async function boot() {
   ctx.THREE = THREE;
   ctx.canvas = document.getElementById('game');
 
-  const forceWebGL = new URLSearchParams(location.search).has('webgl');
+  // Backend pick. Electron's WebGPU (behind enable-unsafe-webgpu) fails pipeline
+  // compilation on some machines (GPUPipelineError: invalid fragment ShaderModule)
+  // → connected-but-BLACK screen in the desktop exe. The desktop app therefore
+  // defaults to the rock-solid WebGL2 backend (?webgpu opts back in for testing);
+  // browsers keep WebGPU. A safety net below also catches the error at runtime
+  // and reloads onto WebGL, so even masked user agents self-heal.
+  const bootParams = new URLSearchParams(location.search);
+  const isElectron = /Electron/i.test(navigator.userAgent);
+  const forceWebGL = bootParams.has('webgl') || (isElectron && !bootParams.has('webgpu'));
+  if (!forceWebGL) {
+    window.addEventListener('unhandledrejection', (e) => {
+      const msg = String((e && (e.reason?.message || e.reason)) || '');
+      if (/GPUPipelineError|ShaderModule|GPUDevice/i.test(msg) && !bootParams.has('webgl')) {
+        const u = new URL(location.href);
+        u.searchParams.set('webgl', '1');
+        location.replace(u.toString()); // one-way: reload onto WebGL2, no loop
+      }
+    });
+  }
   ctx.renderer = new THREE.WebGPURenderer({
     canvas: ctx.canvas,
     antialias: true,
