@@ -425,15 +425,39 @@ export class EditorMode {
       return { x: this._snapVal(p.x), y: this._snapVal(p.y), z: this._snapVal(p.z), hit: null };
     }
     const p = hit.point.clone();
-    // if we hit a block face, offset outward by half the ghost size along the normal
+    // ---- SNAP-TO-FACE placement (no more clipping) --------------------------
+    // Hitting a block face: the new piece sits EXACTLY flush on that face along
+    // the normal axis (grid rounding used to pull it back INTO the block), and
+    // the two tangent axes grid-snap then EDGE-ALIGN to the struck block (flush
+    // corners / centered / stacked outside-corner) so pieces click together.
     if (hit.ref && hit.ref.type === 'block' && hit.normal) {
-      const half = this._activeHalfExtents();
+      const half = this._effHalfExtents();
+      const hi = { x: half[0], y: half[1], z: half[2] };
       const n = hit.normal;
-      p.x += n.x * half[0]; p.y += n.y * half[1]; p.z += n.z * half[2];
+      const ax = (Math.abs(n.x) >= Math.abs(n.y) && Math.abs(n.x) >= Math.abs(n.z)) ? 'x'
+        : (Math.abs(n.y) >= Math.abs(n.z) ? 'y' : 'z');
+      const rec = this._recOf({ type: 'block', uid: hit.ref.uid });
+      const tb = rec ? this._recAabb(rec) : null;
+      const sign = n[ax] >= 0 ? 1 : -1;
+      const out = { x: p.x, y: p.y, z: p.z };
+      out[ax] = (tb ? (sign > 0 ? tb.max[ax] : tb.min[ax]) : p[ax]) + sign * hi[ax]; // exact flush
+      for (const t of ['x', 'y', 'z']) {
+        if (t === ax) continue;
+        let v = this._snapVal(out[t]);
+        if (tb && this.snap) {
+          // candidate alignments on the struck block: inside-flush both edges,
+          // centered, and outside-corner both sides
+          const cands = [tb.min[t] + hi[t], (tb.min[t] + tb.max[t]) / 2, tb.max[t] - hi[t], tb.min[t] - hi[t], tb.max[t] + hi[t]];
+          const tol = Math.max(this.gridSize * 0.6, 0.3);
+          for (const c of cands) { if (Math.abs(c - v) <= tol) { v = c; break; } }
+        }
+        out[t] = v;
+      }
+      return { x: out.x, y: out.y, z: out.z, hit };
     } else if (!hit.ref) {
-      // ground: lift by half height so the block sits on the floor
-      const half = this._activeHalfExtents();
-      p.y += half[1];
+      // ground: X/Z grid-snap but Y sits EXACTLY on the floor (no sink/hover)
+      const half = this._effHalfExtents();
+      return { x: this._snapVal(p.x), y: p.y + half[1], z: this._snapVal(p.z), hit };
     }
     return { x: this._snapVal(p.x), y: this._snapVal(p.y), z: this._snapVal(p.z), hit };
   }
@@ -444,6 +468,27 @@ export class EditorMode {
       return [def.size[0] / 2, def.size[1] / 2, def.size[2] / 2];
     }
     return [0.7, 0.8, 0.7];
+  }
+
+  // half extents with the ghost's yaw applied (90°/270° swaps X/Z) so a rotated
+  // wall placed against a face is flush with its ROTATED footprint.
+  _effHalfExtents() {
+    const h = this._activeHalfExtents();
+    return (Math.round((this.ghostYaw || 0) / 90) % 2) ? [h[2], h[1], h[0]] : h;
+  }
+
+  // world AABB of a placed block record — only when its yaw is (a multiple of)
+  // 90°, else null (edge-align falls back to plain grid snapping).
+  _recAabb(rec) {
+    const def = BLOCK_TYPES[rec.type];
+    if (!def) return null;
+    const deg = ((rec.ry || 0) * 180 / Math.PI);
+    const m = ((deg % 90) + 90) % 90;
+    if (m > 1 && m < 89) return null; // non-axis yaw → conservative
+    let hx = (rec.sx || def.size[0]) / 2, hz = (rec.sz || def.size[2]) / 2;
+    const hy = (rec.sy || def.size[1]) / 2;
+    if (Math.round(deg / 90) % 2) { const t = hx; hx = hz; hz = t; }
+    return { min: { x: rec.x - hx, y: rec.y - hy, z: rec.z - hz }, max: { x: rec.x + hx, y: rec.y + hy, z: rec.z + hz } };
   }
 
   // =========================================================================
