@@ -165,6 +165,7 @@ export class ArenaMode {
   // enter/leave the co-op TD presentation layer
   _setTdActive(on) {
     this.ctx.tdActive = on; // pause screen re-titles itself from this
+    this.ctx.input?._updateHint?.(); // if the pause overlay is up right now, re-title it
     if (on && !this.tdView) {
       this.tdView = new TdView(this.ctx, this);
       this.tdUi = new TdUi(this.ctx, this.conn, this.tdView);
