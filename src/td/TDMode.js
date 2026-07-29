@@ -10,6 +10,7 @@ import { UNIT_DEFS, PLAYER_UPGRADES, canUpgrade, composeWave } from './data.js';
 import { Unit } from './Units.js';
 import { Enemy, EnemyTargets } from './Enemies.js';
 import { TDWorld, distToPath, CORE_POS, PATH_W } from './TDWorld.js';
+import * as NG from '../ngames/ngames-arena.js';
 
 function injectCss(id, t) { if (document.getElementById(id)) return; const s = document.createElement('style'); s.id = id; s.textContent = t; document.head.appendChild(s); }
 const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
@@ -241,6 +242,9 @@ export class TDMode {
     this.wave++;
     this.phase = 'wave';
     this.startBtn.style.display = 'none';
+    // N GAMES: presence + "Hold the Line" (reach wave 10)
+    NG.setPresence({ mode: 'TD', status: `holding the line · wave ${this.wave}` });
+    if (this.wave >= 10) NG.unlock(NG.ACH.TD_WAVE_10);
     const comp = composeWave(this.wave);
     this._waveComp = comp;
     this._spawnQueue = [];
@@ -268,6 +272,10 @@ export class TDMode {
   }
 
   onEnemyKilled(e, opts) {
+    // N GAMES: player-credited kills + Regicide (any queen down counts — the
+    // units are the player's army)
+    if (opts?.byPlayer) this.playerKills = (this.playerKills || 0) + 1;
+    if (e.defId === 'queen') NG.unlock(NG.ACH.HIVE_QUEEN);
     // bounty (beacons multiply near the kill)
     let mult = 1;
     for (const u of this.units) if (u.stats.goldMult && u.pos.distanceTo(e.pos) < u.stats.range) mult = Math.max(mult, u.stats.goldMult);
@@ -283,6 +291,14 @@ export class TDMode {
     this.overEl.style.display = 'flex';
     this.overEl.querySelector('.s').textContent = `THE LINE BROKE ON WAVE ${this.wave}`;
     try { document.exitPointerLock?.(); } catch { /* fine */ }
+    // N GAMES: report the TD run (neutral outcome — the wave reached is the score)
+    NG.reportMatchEnd({
+      mode: 'TD', wave: this.wave,
+      kills: this.playerKills | 0,
+      playtimeSec: Math.round(this._t),
+      score: this.wave * 100 + (this.playerKills | 0) * 10,
+    });
+    NG.setPresence({ status: 'in the menu' });
   }
 
   _endWave() {

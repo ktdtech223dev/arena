@@ -10,6 +10,7 @@ import { mapList } from '../../shared/maps.js';
 import { WEAPONS } from '../weapons/weapons-data.js';
 import { getProfile, getStats, CAMO_TIERS, camoForKills } from '../core/Profile.js';
 import { STATIONS, RadioPlayer } from './Radio.js';
+import * as NG from '../ngames/ngames-arena.js';
 
 const CSS = `
 .mm-root{position:absolute;inset:0;z-index:60;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
@@ -161,6 +162,7 @@ export class MainMenu {
         <div class="bi" data-bot="editor">MAP EDITOR</div>
         <div class="bi" data-bot="settings">SETTINGS</div>
         <div class="bi" data-bot="radio">📻 RADIO: OFF</div>
+        <div class="bi" data-bot="crew">👤 CREW: —</div>
       </div>
 
       <div class="mp-hub">
@@ -200,6 +202,27 @@ export class MainMenu {
     });
     root.querySelector('[data-bot="editor"]').addEventListener('click', () => go('editor'));
     root.querySelector('[data-bot="settings"]').addEventListener('click', () => this.settingsPanel.open());
+    // N GAMES crew link: shows who the network thinks is playing; click cycles
+    // through the crew for standalone launches (the launcher sets it automatically).
+    const crewBtn = root.querySelector('[data-bot="crew"]');
+    const paintCrew = () => { crewBtn.textContent = `👤 CREW: ${(NG.getCrewId() || '—').toUpperCase()}`; };
+    paintCrew();
+    setTimeout(paintCrew, 800); // after init resolves the launcher-passed id
+    crewBtn.addEventListener('click', () => {
+      const cur = NG.getCrewId();
+      const next = NG.CREW[(NG.CREW.indexOf(cur) + 1) % NG.CREW.length];
+      NG.setCrewId(next);
+      paintCrew();
+    });
+    // career achievements catch-up whenever the menu opens linked
+    getStats().then((s) => {
+      if (!NG.isLinked()) return;
+      NG.syncCareer(s);
+      const most = Math.max(0, ...Object.values(s.weaponKills || {}).map((n) => n | 0));
+      if (most >= 300) NG.unlock(NG.ACH.CAMO_GOLD);
+      if (most >= 500) NG.unlock(NG.ACH.CAMO_PRISM);
+    }).catch(() => {});
+
     // menu radio: local playback, click to cycle stations (in-game it's the shared voted station)
     const radioBtn = root.querySelector('[data-bot="radio"]');
     let radioIdx = STATIONS.length - 1; // start at OFF

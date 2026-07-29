@@ -44,6 +44,34 @@ async function boot() {
   // ?mode=range → single-player facility; ?mode=arena → multiplayer arena.
   const params = new URLSearchParams(location.search);
   const mode = params.get('mode');
+
+  // ---- N GAMES NETWORK (presence / achievements / leaderboards) -------------
+  // Boots on EVERY path (menu, range, arena, editor, td). Anonymous or offline →
+  // every call is a silent no-op; nothing can throw into the frame.
+  try {
+    const NG = await import('./ngames/ngames-arena.js');
+    NG.init({
+      onAchievement: (e) => {
+        const d = document.createElement('div');
+        d.style.cssText = 'position:absolute;top:64px;right:14px;z-index:120;background:rgba(10,16,24,.94);' +
+          'border:1px solid rgba(255,209,102,.5);border-radius:8px;padding:10px 16px;' +
+          'font-family:Segoe UI,system-ui,sans-serif;font-size:13px;color:#eaf6ff;box-shadow:0 8px 30px rgba(0,0,0,.5);transition:opacity .4s;';
+        const icon = document.createElement('span'); icon.textContent = (e.icon || '🏆') + ' ';
+        const name = document.createElement('b'); name.textContent = e.name || 'Achievement';
+        const np = document.createElement('span'); np.style.color = '#ffd166'; np.textContent = '  +' + (e.np_reward || 0) + ' NP';
+        d.append(icon, name, np);
+        (document.getElementById('ui') || document.body).appendChild(d);
+        setTimeout(() => { d.style.opacity = '0'; setTimeout(() => d.remove(), 450); }, 3800);
+      },
+    }).then(() => {
+      NG.setPresence({
+        status: mode === 'arena' ? 'in a match' : mode === 'editor' ? 'building a map'
+          : mode === 'td' ? 'holding the line' : mode === 'range' ? 'in the test range' : 'in the menu',
+      });
+    });
+    window.addEventListener('beforeunload', () => NG.shutdown());
+  } catch { /* network layer optional — never block boot */ }
+
   if (mode !== 'range' && mode !== 'arena' && mode !== 'editor' && mode !== 'td') {
     const { MainMenu } = await import('./ui/MainMenu.js');
     new MainMenu();

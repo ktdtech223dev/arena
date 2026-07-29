@@ -865,6 +865,8 @@ export class EditorMode {
         return { ok: true, id: custom.id, offline: true, warnings: [...(result.warnings || []), 'server unavailable — saved locally only'] };
       }
       if (data.id) { this.map.id = data.id; }
+      // N GAMES: "Architect" — published a custom map to the crew server.
+      import('../ngames/ngames-arena.js').then((NG) => NG.unlock(NG.ACH.MAPMAKER)).catch(() => {});
       return { ok: true, id: data.id, warnings: [...(result.warnings || []), ...(data.warnings || [])] };
     } catch (err) {
       // offline / network failure — degrade to a local save

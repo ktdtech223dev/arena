@@ -27,6 +27,11 @@ import { getProfile } from '../core/Profile.js';
 import { ModeHUD } from '../ui/ModeHUD.js';
 import { ModeView } from './ModeView.js';
 import { RadioPlayer, RadioPanel } from '../ui/Radio.js';
+import * as NG from '../ngames/ngames-arena.js';
+import { getStats } from '../core/Profile.js';
+
+// mode id → the N Games session label
+const NG_MODE = { ffa: 'FFA', tdm: 'TDM', ctf: 'CTF', koth: 'HILL', oddball: 'SKULL' };
 
 const FOOTSTEPS = ['footstep_01', 'footstep_02', 'footstep_03', 'footstep_04'];
 
@@ -101,6 +106,8 @@ export class ArenaMode {
     // crew radio (J): shared station, vote to change; live streams sync themselves
     this.radio = new RadioPlayer(0.32);
     this.radioPanel = new RadioPanel(ctx, (id) => this.conn.sendVote('radio', id));
+    // N GAMES: local match tally (kills/deaths/streak) → sessions + achievements
+    this._match = { kills: 0, deaths: 0, streak: 0, best: 0, start: Date.now() };
     ctx.input.onKeyDown('KeyB', () => {
       if (this.mapSelect.isOpen) { this.mapSelect.close(); ctx.input.popUI('mapselect'); }
       else { ctx.input.pushUI('mapselect'); this.mapSelect.open(); }
@@ -133,6 +140,7 @@ export class ArenaMode {
     this.mapDyn = { doors: (mapState && mapState.doors) || {}, destroyed: new Set((mapState && mapState.destroyed) || []) };
     this.ctx.world.colliders = buildLiveWorld(this.map, this.mapDyn, this.conn.serverNow() / 1000);
     this._applyLoadout();
+    NG.setPresence({ map: this.map?.name, status: 'in a match' }); // crew presence (coarse)
   }
 
   // CUSTOM maps force ARENA pickups: the player is stripped to a starter loadout
@@ -165,7 +173,10 @@ export class ArenaMode {
       // game-mode chips in the B panel + initial mode state
       if (Array.isArray(w.modes)) this.mapSelect?.setModes?.(w.modes, w.mode?.id, (id) => this.conn.sendSetMode(id));
       this.mapSelect?.setBots?.((d) => this.conn.sendAddBot(d), () => this.conn.sendRemoveBot());
-      if (w.mode) { this.modeSnap = w.mode; this.modeHUD.update(w.mode); this.modeView.sync(w.mode, conn.id); }
+      if (w.mode) {
+        this.modeSnap = w.mode; this.modeHUD.update(w.mode); this.modeView.sync(w.mode, conn.id);
+        NG.setPresence({ mode: NG_MODE[w.mode.id] || w.mode.id });
+      }
       // crew radio: adopt the lobby's shared station
       if (w.radio) {
         this.radioPanel.setStations(w.radio.stations, w.radio.current);
@@ -214,14 +225,49 @@ export class ArenaMode {
     conn.on('boom', (e) => { if (e) this.projView.boom(e.kind, e.pos, e.radius); });
 
     // game-mode lifecycle: round winner banner + mode switches + captures
-    conn.on('round_end', (e) => { if (e) this.modeHUD.roundEnd(e); });
+    conn.on('round_end', (e) => {
+      if (!e) return;
+      this.modeHUD.roundEnd(e);
+      // ---- N GAMES: report the finished match + win achievements ----
+      const myTeam = this.modeSnap?.teamOf?.[conn.id];
+      const won = e.winner === conn.id || (e.winnerTeam != null && myTeam != null && e.winnerTeam === myTeam);
+      const mt = this._match;
+      NG.reportMatchEnd({
+        mode: NG_MODE[e.mode] || String(e.mode || 'FFA').toUpperCase(),
+        outcome: won ? 'win' : ((e.winner || e.winnerTeam != null) ? 'loss' : undefined),
+        kills: mt.kills, deaths: mt.deaths, bestStreak: mt.best,
+        playtimeSec: Math.round((Date.now() - mt.start) / 1000),
+        map: this.map?.name,
+      });
+      if (won) {
+        NG.unlock(NG.ACH.FIRST_WIN);
+        if (e.mode === 'koth') NG.unlock(NG.ACH.HILL_WIN);
+        if (e.mode === 'oddball') NG.unlock(NG.ACH.SKULL_WIN);
+        // Outclassed: won a round with a MASTER bot in the lobby
+        for (const info of this.playerInfo.values()) {
+          if (String(info?.name || '').includes('[MASTER]')) { NG.unlock(NG.ACH.BEAT_MASTER); break; }
+        }
+      }
+      // career totals + camo achievements (server-side stats are the truth)
+      getStats().then((s) => {
+        NG.syncCareer(s);
+        const most = Math.max(0, ...Object.values(s.weaponKills || {}).map((n) => n | 0));
+        if (most >= 300) NG.unlock(NG.ACH.CAMO_GOLD);
+        if (most >= 500) NG.unlock(NG.ACH.CAMO_PRISM);
+      }).catch(() => {});
+      this._match = { kills: 0, deaths: 0, streak: 0, best: 0, start: Date.now() };
+    });
     conn.on('mode_change', (m) => {
       if (!m) return;
       this.modeSnap = m; this.modeHUD.update(m); this.modeView.sync(m, conn.id);
       this.mapSelect?.setCurrentMode?.(m.id);
+      NG.setPresence({ mode: NG_MODE[m.id] || m.id });
     });
     conn.on('mode_event', (e) => {
-      if (e?.kind === 'capture') this._flashPickup(`${e.team === 0 ? 'RED' : 'BLUE'} FLAG CAPTURED`);
+      if (e?.kind === 'capture') {
+        this._flashPickup(`${e.team === 0 ? 'RED' : 'BLUE'} FLAG CAPTURED`);
+        if (e.by === conn.id) NG.unlock(NG.ACH.FLAG_CAPTURE); // Flag Runner
+      }
     });
 
     // crew radio: the vote passed → everyone tunes together
@@ -290,6 +336,17 @@ export class ArenaMode {
         victimName: victim.name, victimColor: victim.color,
         weapon: m.weapon, headshot: !!m.headshot, suicide,
       });
+      // N GAMES: tally MY kills/deaths + streak achievements (server-echoed, so fair)
+      if (m.by === conn.id && m.id !== conn.id) {
+        const mt = this._match;
+        mt.kills++; mt.streak++; mt.best = Math.max(mt.best, mt.streak);
+        NG.unlock(NG.ACH.FIRST_BLOOD);
+        if (mt.streak === 5) NG.unlock(NG.ACH.STREAK_5);
+        if (mt.streak === 10) NG.unlock(NG.ACH.STREAK_10);
+        if (mt.streak === 15) { NG.unlock(NG.ACH.STREAK_15); NG.postToWall(`👑 ${this.myCrew?.name || 'Someone'} hit a 15-streak in ARENA`); }
+        if (this.ctx.weapons?.dualActive) NG.unlock(NG.ACH.DUAL_WIELD);
+      }
+      if (m.id === conn.id) { this._match.deaths++; this._match.streak = 0; }
       if (m.id === conn.id) {
         this._dead = true;
         this.ctx.input.setSuppressed(true); // no shooting/moving while dead + in the killcam

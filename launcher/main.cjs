@@ -8,7 +8,21 @@
 const { app, BrowserWindow, session, shell } = require('electron');
 
 // The live game. Root URL = the main menu (Test Range / Multiplayer / Map Editor).
-const GAME_URL = process.env.ARENA_URL || 'https://range-production-bd9e.up.railway.app/';
+const BASE_URL = process.env.ARENA_URL || 'https://range-production-bd9e.up.railway.app/';
+
+// The N Games Launcher sets NGAMES_PROFILE=<crew id> when it launches us.
+// Forward it to the page as a query param — the renderer (remote URL,
+// contextIsolation, no preload) can't read process.env itself.
+function gameUrl() {
+  const p = process.env.NGAMES_PROFILE;
+  if (!p) return BASE_URL;
+  try {
+    const u = new URL(BASE_URL);
+    u.searchParams.set('ngames_profile', p);
+    return u.toString();
+  } catch { return BASE_URL; }
+}
+const GAME_URL = gameUrl();
 
 // Give the GPU the best shot at WebGPU; harmless if already enabled.
 app.commandLine.appendSwitch('enable-unsafe-webgpu');
