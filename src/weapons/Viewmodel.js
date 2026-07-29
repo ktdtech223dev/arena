@@ -181,9 +181,22 @@ export class Viewmodel {
     this._v = new THREE.Vector3();
     this._q = new THREE.Quaternion();
 
+    // ---- OFFHAND (dual-wield left gun): its own mount, mirrored to the left of
+    // the screen; a simple kick spring on fire (the full GunAnim only drives the
+    // right gun). Models cached separately so the same gun id can exist in both hands.
+    this.offMount = new THREE.Group();
+    this.offMount.visible = false;
+    this.scene.add(this.offMount);
+    this._offModels = new Map(); // id -> { group, parts, meta }
+    this._offCur = null;
+    this._offBase = { pos: [0, 0, 0], rot: [0, 0, 0] };
+    this._offKick = 0;
+
     // ---- events ----
     this._unsub = [];
     this._unsub.push(ctx.events.on('weapon:equip', (e) => this._onEquip(e)));
+    this._unsub.push(ctx.events.on('dual:exit', () => this._clearOffhand()));
+    this._unsub.push(ctx.events.on('weapon:fired', (e) => { if (e?.side === 'L') this._offKick = 1; }));
 
     // tunable: overall viewmodel FOV + a global scale hook
     this._vmFov = 58;
@@ -205,6 +218,7 @@ export class Viewmodel {
   _onEquip(e) {
     const def = e?.def;
     if (!def) return;
+    if (e.offhand) { this._onOffEquip(def); return; } // dual-wield LEFT gun → offMount
     const id = def.id;
     let model = this._models.get(id);
     if (!model) {
@@ -232,6 +246,36 @@ export class Viewmodel {
     this._poseRightHand(model);
   }
 
+  // ---- OFFHAND (dual-wield left gun) ---------------------------------------
+  // Build/show the left gun on its own mount, mirrored from the gun's hip pose.
+  // The left support ARM is hidden while dual (it can't grip two things at once).
+  _onOffEquip(def) {
+    let model = this._offModels.get(def.id);
+    if (!model) {
+      model = buildWeaponModel(def);
+      this.offMount.add(model.group);
+      this._offModels.set(def.id, model);
+    }
+    for (const [mid, m] of this._offModels) m.group.visible = mid === def.id;
+    this._offCur = model;
+    const hip = model.meta?.hip || { pos: [0.22, -0.22, -0.42], rot: [0, 0.05, 0.03] };
+    // mirror: left of screen, yaw/roll flipped
+    this._offBase.pos = [-hip.pos[0], hip.pos[1], hip.pos[2]];
+    this._offBase.rot = [hip.rot[0], -hip.rot[1], -hip.rot[2]];
+    this.offMount.position.set(...this._offBase.pos);
+    this.offMount.rotation.set(...this._offBase.rot);
+    this.offMount.visible = true;
+    this._offKick = 0;
+    this.leftArm.visible = false;
+  }
+
+  _clearOffhand() {
+    this.offMount.visible = false;
+    for (const m of this._offModels.values()) m.group.visible = false;
+    this._offCur = null;
+    this.leftArm.visible = true;
+  }
+
   _poseRightHand(model) {
     const gr = model?.meta?.gripR || { pos: [0, -0.05, 0.03], rot: [0.12, 0, 0] };
     // Parent the whole right arm under the gun group so the trigger hand rides
@@ -255,6 +299,15 @@ export class Viewmodel {
 
     // pose the support (left) hand toward the animator's target pose.
     this._updateSupportHand(dt);
+
+    // OFFHAND kick spring: recoil the left gun back + pitch up, exponential decay.
+    if (this._offCur && this.offMount.visible) {
+      this._offKick = Math.max(0, this._offKick - dt * 7);
+      const k = this._offKick * this._offKick; // ease-out
+      const b = this._offBase;
+      this.offMount.position.set(b.pos[0], b.pos[1] + k * 0.012, b.pos[2] + k * 0.07);
+      this.offMount.rotation.set(b.rot[0] - k * 0.16, b.rot[1], b.rot[2]);
+    }
   }
 
   _updateSupportHand(dt) {

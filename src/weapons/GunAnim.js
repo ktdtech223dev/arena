@@ -340,7 +340,9 @@ export class GunAnim {
 
   // ---- event wiring --------------------------------------------------------
   _wire() {
-    const on = (name, fn) => this._unsub.push(this.ctx.events.on(name, fn));
+    // OFFHAND (dual-wield left gun) events are rendered/kicked by the Viewmodel's
+    // own offhand mount — the main-gun animator must ignore them entirely.
+    const on = (name, fn) => this._unsub.push(this.ctx.events.on(name, (e) => { if (e && e.offhand) return; fn(e); }));
 
     on('weapon:equip', (e) => this._onEquip(e));
     on('weapon:holster', (e) => this._onHolster(e));

@@ -257,9 +257,15 @@ export class ArenaMode {
       if (!p) return;
       this.audioBank.play('equip', { volume: 0.9 });
       this._flashPickup(pickupLabel(p));
-      // grant the weapon into the wheel + auto-equip it. (Previously a weapon pickup
-      // updated the server's weaponId but never switched the local gun.)
-      if (p.kind === 'weapon' && p.weapon) { this.ctx.weapons?.grant?.(p.weapon); this.ctx.weapons?.select?.(p.weapon); }
+      // grant the weapon into the wheel + auto-equip it — UNLESS it forms a
+      // DUAL-WIELD pair: holding a one-handed gun and picking up a different
+      // one-handed gun wields both (LMB = right gun, RMB = left gun, no ADS).
+      if (p.kind === 'weapon' && p.weapon) {
+        const wm = this.ctx.weapons;
+        if (wm?.canDualWith?.(p.weapon) && wm.enterDual(p.weapon)) {
+          this._flashPickup('DUAL WIELD');
+        } else { wm?.grant?.(p.weapon); wm?.select?.(p.weapon); }
+      }
       // ammo pickup: refill every weapon's reserve (ammo is client-tracked).
       if (p.kind === 'ammo') this.ctx.weapons?.resupply?.();
     });

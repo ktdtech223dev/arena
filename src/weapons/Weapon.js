@@ -47,6 +47,19 @@ export class Weapon {
     this._holsterDone = false; // polled by the manager to complete a swap
     this._burstLeft = 0; // rounds remaining in an in-progress burst (burst rifle)
     this._altCooldown = 0; // s until the ALT fire (dual-mode weapons) is ready again
+
+    // DUAL-WIELD: which trigger fires this gun ('fire' = LMB default; the LEFT gun
+    // of a dual pair fires on 'ads' = RMB) and which side it's held on (null | 'R' | 'L').
+    this._fireAction = 'fire';
+    this._dualSide = null;
+  }
+
+  // event tag so anim/feel can ignore the OFFHAND gun's equip/fire/reload events
+  // (the Viewmodel renders + kicks the offhand itself). {} when not dual-wielding.
+  _offTag() {
+    if (this._dualSide === 'L') return { offhand: true, side: 'L' };
+    if (this._dualSide === 'R') return { side: 'R' };
+    return {};
   }
 
   isAds() {
@@ -66,7 +79,7 @@ export class Weapon {
     this.ads = 0;
     this._adsOn = false;
     this._burstLeft = 0; // never carry an unfinished burst across a weapon switch
-    this.ctx.events.emit('weapon:equip', { def: this.def });
+    this.ctx.events.emit('weapon:equip', { ...this._offTag(), def: this.def });
     this.ctx.audio.play('equip', { volume: 0.8 });
   }
 
@@ -77,7 +90,7 @@ export class Weapon {
     this.state = 'holstering';
     this._timer = this.def.holsterT;
     this._holsterDone = false;
-    this.ctx.events.emit('weapon:holster', { def: this.def });
+    this.ctx.events.emit('weapon:holster', { ...this._offTag(), def: this.def });
     this.ctx.audio.play('holster', { volume: 0.8 });
   }
 
@@ -85,7 +98,7 @@ export class Weapon {
     if (this.state !== 'reloading') return;
     this._reload = null;
     this.state = 'idle';
-    this.ctx.events.emit('weapon:reload_end', { def: this.def, cancelled: true });
+    this.ctx.events.emit('weapon:reload_end', { ...this._offTag(), def: this.def, cancelled: true });
   }
 
   // ---- fixed-step update ---------------------------------------------------
@@ -98,7 +111,7 @@ export class Weapon {
     this._altCooldown = Math.max(0, this._altCooldown - dt);
     this._dryCooldown = Math.max(0, this._dryCooldown - dt);
     this._bloom = Math.max(0, this._bloom - this.def.spread.recover * dt);
-    if (!input.down('fire')) this._dryLatch = false;
+    if (!input.down(this._fireAction)) this._dryLatch = false;
 
     // ---- state machine ----
     switch (this.state) {
@@ -186,7 +199,7 @@ export class Weapon {
       if (this.def.burst) {
         // BURST: a fresh trigger pull commits to `def.burst` rounds fired at
         // `burstRpm` cadence; `rpm` is the slower between-bursts refire delay.
-        if (this._burstLeft <= 0 && input.consumePressed('fire')) {
+        if (this._burstLeft <= 0 && input.consumePressed(this._fireAction)) {
           if (this.magAmmo > 0) this._burstLeft = this.def.burst;
           else this._dryFire();
         }
@@ -204,7 +217,8 @@ export class Weapon {
         // semi-auto needs a fresh click (consume the edge); auto just holds.
         // consumePressed is only called when actually ready → un-consumed clicks
         // survive until endFrame, giving natural sub-frame shot buffering.
-        const trig = this.def.auto ? input.down('fire') : input.consumePressed('fire');
+        // (dual-wield: the LEFT gun's trigger is 'ads' = RMB via _fireAction)
+        const trig = this.def.auto ? input.down(this._fireAction) : input.consumePressed(this._fireAction);
         if (trig) {
           if (this.state === 'inspecting') this.state = 'idle';
           if (this.magAmmo > 0) this._fire();
@@ -214,7 +228,8 @@ export class Weapon {
     }
 
     // ---- DUAL-MODE alt fire (RMB): replaces ADS on these weapons ----
-    if (this.def.dualMode && this.def.alt && this._altCooldown <= 0 &&
+    // (suppressed while dual-WIELDING — RMB belongs to the left gun then)
+    if (this.def.dualMode && this.def.alt && !this._dualSide && this._altCooldown <= 0 &&
         (this.state === 'idle' || this.state === 'firing') && !this._pendingCycle) {
       const trig = this.def.alt.auto ? input.down('ads') : input.consumePressed('ads');
       if (trig) {
@@ -224,8 +239,8 @@ export class Weapon {
       }
     }
 
-    // ---- inspect (T) ----
-    if (input.consumePressed('inspect') && this.state === 'idle' && !this._adsOn && this.ads < 0.1) {
+    // ---- inspect (T) ---- (the offhand gun never consumes the inspect edge)
+    if (!this._dualSide && input.consumePressed('inspect') && this.state === 'idle' && !this._adsOn && this.ads < 0.1) {
       this.state = 'inspecting';
       this._timer = P.inspectT;
     }
@@ -303,7 +318,7 @@ export class Weapon {
     // real sample when loaded (AudioBank), synth fallback otherwise. The bank is the
     // single fire-sound source now (the arena net layer no longer double-plays it).
     (ctx.audioBank || ctx.audio).play(def.sounds.fire, { volume: 1, rate: 0.96 + Math.random() * 0.08 });
-    ctx.events.emit('weapon:fired', { def, origin, dir: baseDir, ads: this.ads });
+    ctx.events.emit('weapon:fired', { ...this._offTag(), def, origin, dir: baseDir, ads: this.ads });
 
     if (def.cycle) {
       this._pendingCycle = true;
@@ -331,7 +346,7 @@ export class Weapon {
     }
     (ctx.audioBank || ctx.audio).play(alt.sound || def.sounds.fire, { volume: 1, rate: 0.95 + Math.random() * 0.08 });
     this.manager.recoil.onFire(def, false);
-    ctx.events.emit('weapon:fired', { def, origin, dir: baseDir, ads: 0, alt: true });
+    ctx.events.emit('weapon:fired', { ...this._offTag(), def, origin, dir: baseDir, ads: 0, alt: true });
   }
 
   // ---- melee (knife/bat, §1C) ----------------------------------------------
@@ -359,7 +374,7 @@ export class Weapon {
     ctx.events.emit('weapon:melee', { def, heavy, origin, dir });
     // weapon:fired carries melee:true — the anim's generic recoil ignores it (it
     // branches on id), and the arena fire listener bails on e.melee.
-    ctx.events.emit('weapon:fired', { def, origin, dir, ads: 0, melee: true, heavy });
+    ctx.events.emit('weapon:fired', { ...this._offTag(), def, origin, dir, ads: 0, melee: true, heavy });
 
     // LOCAL sweep — one center ray for immediate feedback within melee range.
     const hit = ctx.world?.raycastShot?.(origin, dir, range);
@@ -544,7 +559,7 @@ export class Weapon {
     if (this._dryLatch || this._dryCooldown > 0) return;
     this._dryLatch = true;
     this._dryCooldown = this.manager.params.dryCooldown;
-    this.ctx.events.emit('weapon:dryfire', { def: this.def });
+    this.ctx.events.emit('weapon:dryfire', { ...this._offTag(), def: this.def });
     this.ctx.audio.play('dryfire', { volume: 0.9 });
   }
 
@@ -558,14 +573,15 @@ export class Weapon {
     this._pendingCycle = false;
     this.state = 'cycling';
     this._timer = def.cycle.t;
-    this.ctx.events.emit('weapon:cycle', { def, phase: def.cycle.phase, duration: def.cycle.t });
+    this.ctx.events.emit('weapon:cycle', { ...this._offTag(), def, phase: def.cycle.phase, duration: def.cycle.t });
     this.ctx.audio.play(`${def.id}_${def.cycle.phase}`, { volume: 0.9 });
   }
 
   _updateAds(dt) {
     const def = this.def;
     // dual-mode weapons use RMB for the ALT fire, not ADS — keep them hip-fire only.
-    if (def.dualMode) {
+    // dual-WIELDED guns also never ADS (RMB fires the left gun).
+    if (def.dualMode || this._dualSide) {
       if (this._adsOn) { this._adsOn = false; this.ctx.player?.camera?.setAds?.(false, 1); }
       this.ads = 0;
       return;
@@ -608,7 +624,7 @@ export class Weapon {
       cancelRequested: false,
       fireBuffered: false, // cancel came from fire input → shoot on finish
     };
-    this.ctx.events.emit('weapon:reload_start', { def, empty });
+    this.ctx.events.emit('weapon:reload_start', { ...this._offTag(), def, empty });
     this._advanceReload();
   }
 
@@ -665,7 +681,7 @@ export class Weapon {
         const t = this._phaseT('shell');
         r.phaseName = 'shell';
         r.t = t;
-        events.emit('weapon:reload_phase', { def, phase: 'shell', duration: t, index: r.shellIndex++ });
+        events.emit('weapon:reload_phase', { ...this._offTag(), def, phase: 'shell', duration: t, index: r.shellIndex++ });
         this.ctx.audio.play(`${def.id}_shell`, { volume: 0.85 });
         return;
       }
@@ -673,7 +689,7 @@ export class Weapon {
         const t = this._phaseT('pump');
         r.phaseName = 'pump';
         r.t = t;
-        events.emit('weapon:reload_phase', { def, phase: 'pump', duration: t });
+        events.emit('weapon:reload_phase', { ...this._offTag(), def, phase: 'pump', duration: t });
         this.ctx.audio.play(`${def.id}_pump`, { volume: 0.9 });
         return;
       }
@@ -692,7 +708,7 @@ export class Weapon {
     const ph = r.phases[r.idx];
     r.phaseName = ph.name;
     r.t = ph.t;
-    events.emit('weapon:reload_phase', { def, phase: ph.name, duration: ph.t });
+    events.emit('weapon:reload_phase', { ...this._offTag(), def, phase: ph.name, duration: ph.t });
     this.ctx.audio.play(`${def.id}_${ph.name}`, { volume: 0.85 });
   }
 
@@ -713,7 +729,7 @@ export class Weapon {
   _finishReload(cancelled) {
     this._reload = null;
     this.state = 'idle';
-    this.ctx.events.emit('weapon:reload_end', { def: this.def, cancelled });
+    this.ctx.events.emit('weapon:reload_end', { ...this._offTag(), def: this.def, cancelled });
   }
 }
 
@@ -769,6 +785,47 @@ export class WeaponManager {
     // roster so RANGE + built-in arena maps are unchanged. On CUSTOM maps the net
     // layer strips this to a starter loadout so guns must be found as pickups.
     this.acquired = new Set(this.defs.map((d) => d.id));
+
+    // DUAL-WIELD: holding a one-handed gun + picking up a DIFFERENT one-handed gun
+    // wields both — current stays the RIGHT gun (LMB), the pickup becomes the LEFT
+    // gun (RMB). ADS is disabled for both. Any weapon switch exits dual-wield.
+    this.offhand = null;      // the LEFT-hand Weapon instance (or null)
+    this.dualActive = false;
+  }
+
+  /** One-handed guns that can be dual-wielded. */
+  static ONE_HANDED = new Set(['pistol', 'revolver', 'smg']);
+
+  canDualWith(id) {
+    const cur = this.current?.def?.id;
+    return !!(cur && id && id !== cur &&
+      WeaponManager.ONE_HANDED.has(cur) && WeaponManager.ONE_HANDED.has(id) &&
+      this.weapons.has(id));
+  }
+
+  /** Enter dual-wield: current = right gun, `leftId` = left gun (fires on RMB). */
+  enterDual(leftId) {
+    if (!this.canDualWith(leftId)) return false;
+    if (this.dualActive) this.exitDual();
+    this.grant(leftId);
+    this.offhand = this.weapons.get(leftId);
+    this.offhand._dualSide = 'L';
+    this.offhand._fireAction = 'ads';   // RMB fires the left gun
+    this.current._dualSide = 'R';
+    this.dualActive = true;
+    this.offhand.beginEquip();          // emits weapon:equip {offhand:true} → Viewmodel offMount
+    this.ctx.events.emit('dual:enter', { right: this.current.def, left: this.offhand.def });
+    return true;
+  }
+
+  exitDual() {
+    if (!this.dualActive) return;
+    const off = this.offhand;
+    this.dualActive = false;
+    this.offhand = null;
+    if (off) { off._dualSide = null; off._fireAction = 'fire'; off.state = 'idle'; off.ads = 0; off._adsOn = false; }
+    if (this.current) this.current._dualSide = null;
+    this.ctx.events.emit('dual:exit', {});
   }
 
   _owned(id) { return !this.acquired || this.acquired.has(id); }
@@ -783,6 +840,8 @@ export class WeaponManager {
   setAcquired(ids) {
     this.acquired = new Set((Array.isArray(ids) ? ids : []).filter((id) => this.weapons.has(id)));
     if (this.acquired.size === 0) this.acquired.add('knife');
+    // a loadout strip that removes the LEFT gun ends dual-wield
+    if (this.dualActive && this.offhand && !this.acquired.has(this.offhand.def.id)) this.exitDual();
     // if the held (or pending) gun is no longer owned, swap to an owned one
     // (prefer a firearm, else whatever's left) so the HUD never holds nothing.
     if (!this._owned(this._pendingId ?? this.current?.def?.id)) {
@@ -796,6 +855,7 @@ export class WeaponManager {
   select(id) {
     if (!this.weapons.has(id)) return;
     if (this.acquired && !this.acquired.has(id)) return; // not owned yet (custom map)
+    if (this.dualActive) this.exitDual(); // any explicit switch drops the left gun
     if (this._pendingId) {
       this._pendingId = id; // retarget mid-holster
       return;
@@ -821,7 +881,15 @@ export class WeaponManager {
     }
 
     this._handleSwitchInput();
+
+    // dual-wield: R reloads BOTH guns (peek the edge before either consumes it)
+    if (this.dualActive && this.offhand && this.ctx.input.pressed('reload')) {
+      this.current._reloadQueued = true;
+      this.offhand._reloadQueued = true;
+    }
+
     this.current.fixedUpdate(dt);
+    if (this.dualActive && this.offhand) this.offhand.fixedUpdate(dt);
 
     if (this._pendingId && this.current._holsterDone) {
       const next = this.weapons.get(this._pendingId);

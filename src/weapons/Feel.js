@@ -149,7 +149,7 @@ export class Feel {
 
     // ---- wire events ----
     this._unsub = [];
-    const on = (n, fn) => this._unsub.push(ctx.events.on(n, fn));
+    const on = (n, fn) => this._unsub.push(ctx.events.on(n, (e) => { if (e && e.offhand) return; fn(e); })); // offhand gun: Viewmodel owns its feel
     on('weapon:fired', (e) => this._onFired(e));
     on('target:hit', (e) => this._onHit(e));
     on('target:killed', (e) => this._onKilled(e));
