@@ -1,7 +1,7 @@
 {
   "name": "arena-launcher",
   "productName": "ARENA",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "ARENA — Titanfall-style movement FPS. Native desktop launcher.",
   "author": "N Games",
   "main": "main.cjs",
