@@ -232,17 +232,33 @@ export class Input {
       background:rgba(6,8,12,0.72); backdrop-filter: blur(3px);
       color:#dfe7f0; text-align:center; z-index:100; cursor:pointer;
     `;
+    // this overlay IS the de facto pause screen (Esc unlocks → it appears), so it
+    // carries the way back to the main menu. Title follows the active mode.
+    const mode = this.ctx?.mode;
+    const title = mode === 'arena' ? 'ARENA' : mode === 'td' ? 'TOWER DEFENSE' : 'RANGE';
+    const enter = mode === 'arena' ? 'CLICK TO REJOIN THE MATCH' : mode === 'td' ? 'CLICK TO HOLD THE LINE' : 'CLICK TO ENTER THE RANGE';
     el.innerHTML = `
-      <div style="font-size:44px; font-weight:800; letter-spacing:0.35em; color:#7df9ff; text-shadow:0 0 24px rgba(125,249,255,0.5);">RANGE</div>
-      <div style="font-size:15px; letter-spacing:0.2em; opacity:0.9;">CLICK TO ENTER THE RANGE</div>
+      <div style="font-size:44px; font-weight:800; letter-spacing:0.35em; color:#7df9ff; text-shadow:0 0 24px rgba(125,249,255,0.5);">${title}</div>
+      <div style="font-size:15px; letter-spacing:0.2em; opacity:0.9;">${enter}</div>
       <div style="font-size:12px; opacity:0.6; line-height:1.9; letter-spacing:0.05em;">
         WASD move &nbsp;·&nbsp; SPACE jump &nbsp;·&nbsp; CTRL/C slide &nbsp;·&nbsp; LMB fire &nbsp;·&nbsp; RMB aim &nbsp;·&nbsp; R reload<br>
         1–7 weapons &nbsp;·&nbsp; Q quickswap &nbsp;·&nbsp; TAB weapon wheel &nbsp;·&nbsp; E interact &nbsp;·&nbsp; T inspect<br>
         K crosshair editor &nbsp;·&nbsp; F debug panel &nbsp;·&nbsp; M range menu &nbsp;·&nbsp; ESC release mouse
       </div>
+      <div id="lock-hint-menu" style="
+        margin-top:10px; font-size:13px; font-weight:800; letter-spacing:0.26em; color:#8fa6bb;
+        border:1px solid rgba(125,249,255,0.35); border-radius:8px; padding:10px 26px; cursor:pointer;
+      ">◄ MAIN MENU</div>
     `;
     el.classList.add('interactive');
     el.addEventListener('click', () => this.lock());
+    const menuBtn = el.querySelector('#lock-hint-menu');
+    menuBtn.addEventListener('mouseenter', () => { menuBtn.style.color = '#7df9ff'; menuBtn.style.borderColor = '#7df9ff'; });
+    menuBtn.addEventListener('mouseleave', () => { menuBtn.style.color = '#8fa6bb'; menuBtn.style.borderColor = 'rgba(125,249,255,0.35)'; });
+    menuBtn.addEventListener('click', (e) => {
+      e.stopPropagation(); // don't let the overlay's click-to-lock swallow it
+      location.href = location.pathname; // strip ?mode → the main menu
+    });
     document.getElementById('ui').appendChild(el);
     this._hint = el;
   }
