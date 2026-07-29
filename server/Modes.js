@@ -16,6 +16,9 @@ export const MODES = {
   ctf:     { name: 'CAPTURE THE FLAG', teams: true, scoreLimit: 3, timeLimit: 600 },
   koth:    { name: 'HILL', teams: false, scoreLimit: 90,  timeLimit: 480 },
   oddball: { name: 'SKULL', teams: false, scoreLimit: 60, timeLimit: 480 },
+  // CO-OP Tower Defense: the crew vs the horde on FOUNDRY. No PvP, no round
+  // timer — TdSim (waves/gold/core) owns the whole lifecycle.
+  td:      { name: 'TOWER DEFENSE', teams: false, scoreLimit: 0, timeLimit: 0, td: true, pvp: false },
 };
 export const DEFAULT_MODE = 'ffa';
 export const TEAM_NAMES = ['RED', 'BLUE'];
@@ -93,9 +96,12 @@ export class ModeState {
     }
   }
 
-  /** True → the sim must ignore this damage (same-team fire in team modes). */
+  /** True → the sim must ignore this damage (same-team fire, or ANY PvP when
+   *  the mode disables it — co-op TD). */
   blocksDamage(attackerId, victimId) {
-    if (!this.def.teams || attackerId === victimId) return false;
+    if (attackerId === victimId) return false;
+    if (this.def.pvp === false) return true; // co-op: players never hurt each other
+    if (!this.def.teams) return false;
     const a = this.game.lobby.players.get(attackerId), v = this.game.lobby.players.get(victimId);
     return !!(a && v && a.team != null && a.team === v.team);
   }
@@ -121,6 +127,7 @@ export class ModeState {
   }
 
   step(dt, now, players) {
+    if (this.def.td) return; // co-op TD: TdSim owns waves/win/loss — no round timer
     if (this.ended) {
       if (this._restartAt && now >= this._restartAt) this._restartRound();
       return;

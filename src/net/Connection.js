@@ -31,7 +31,7 @@ export class Connection {
 
     // server messages -> apply inbound latency, then dispatch
     const forward = (name) => this.sock.on(name, (data) => this._recv(name, data));
-    for (const n of ['welcome', 'player_join', 'player_leave', 'snapshot', 'hit', 'death', 'respawn', 'boom', 'shotfx', 'map_change', 'lobby_full', 'accolade', 'accolade_summary', 'pickup', 'maps_updated', 'mode_change', 'mode_event', 'round_end', 'radio_set', 'vote_update']) forward(n);
+    for (const n of ['welcome', 'player_join', 'player_leave', 'snapshot', 'hit', 'death', 'respawn', 'boom', 'shotfx', 'map_change', 'lobby_full', 'accolade', 'accolade_summary', 'pickup', 'maps_updated', 'mode_change', 'mode_event', 'round_end', 'radio_set', 'vote_update', 'td_ack', 'td_wave', 'td_wavedone', 'td_over', 'td_reset']) forward(n);
 
     this.sock.on('pong', (m) => this._onPong(m));
   }
@@ -50,6 +50,7 @@ export class Connection {
   sendVote(kind, id) { this._send('vote', { kind, id }); }
   sendAddBot(difficulty) { this._send('addBot', { difficulty }); }
   sendRemoveBot() { this._send('removeBot', {}); }
+  tdSend(op, m) { this._send(op, m || {}); } // co-op TD commands (td_place/…)
   sendSwap(weaponId) { this._send('swap', { weaponId }); }
   sendReload(weaponId) { this._send('reload', { weaponId }); }
   sendSummaryReq() { this._send('accolade_summary_req', {}); }

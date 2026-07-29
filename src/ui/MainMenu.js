@@ -113,9 +113,6 @@ function injectCss(id, t) { if (document.getElementById(id)) return; const s = d
 function go(mode) { const u = new URL(location.href); u.searchParams.set('mode', mode); location.href = u.toString(); }
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-// The FPS Tower Defense mode is live (?mode=td).
-const TD_READY = true;
-
 // captions shown in the ticker per hovered channel (MW2-style description strip)
 const CAPTIONS = {
   td: 'Hold the line — place and upgrade units between waves, then fight the horde yourself in first person.',
@@ -195,8 +192,11 @@ export class MainMenu {
       c.addEventListener('click', () => {
         if (ch === 'range') go('range');
         else if (ch === 'td') {
-          if (TD_READY) go('td');
-          else { tick.textContent = '⚠ TOWER DEFENSE — FINAL ASSEMBLY IN PROGRESS. DEPLOYING SOON.'; tick.style.color = '#9fe86a'; setTimeout(() => { tick.style.color = ''; }, 1600); }
+          // co-op TD: joins the crew server and votes the lobby onto TOWER DEFENSE
+          const u = new URL(location.href);
+          u.searchParams.set('mode', 'arena');
+          u.searchParams.set('td', '1');
+          location.href = u.toString();
         } else this._show('hub');
       });
     });

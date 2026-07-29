@@ -17,8 +17,9 @@ import { data as bastion } from './mapdata/bastion.js';
 import { data as warren } from './mapdata/warren.js';
 import { data as drift } from './mapdata/drift.js';
 import { data as halo } from './mapdata/halo.js';
+import { data as foundry } from './mapdata/foundry.js';
 
-const REGISTERED = [spire, causeway, caldera, helix, bastion, warren, drift, halo];
+const REGISTERED = [spire, causeway, caldera, helix, bastion, warren, drift, halo, foundry];
 
 // Built-in maps ship no authored pickups — scatter a few AMMO crates at good interior
 // floor spots so every base map has resupply. DETERMINISTIC (no RNG, pure function of
@@ -66,6 +67,7 @@ function pickAmmoSpots(map, n = 3) {
   return picked.map((p) => ({ x: +p.x.toFixed(2), y: +(p.y + 0.8).toFixed(2), z: +p.z.toFixed(2) }));
 }
 function scatterAmmo(map) {
+  if (map.td) return; // the TD arena runs its own economy — no ammo crates
   if (map.custom || (Array.isArray(map.pickups) && map.pickups.length)) return;
   const spots = pickAmmoSpots(map, 3);
   if (spots.length) map.pickups = spots.map((s, i) => ({ id: `ammo_${map.id}_${i}`, kind: 'ammo', pos: s, respawnMs: 15000 }));
@@ -109,7 +111,8 @@ export function unregisterCustomMap(id) {
 
 const hex = (n) => (typeof n === 'number' ? '#' + n.toString(16).padStart(6, '0') : null);
 export function mapList() {
-  return Object.values(MAPS).map((m) => ({
+  // td maps are mode-bound (switching to TOWER DEFENSE loads them) — hidden here
+  return Object.values(MAPS).filter((m) => !m.td).map((m) => ({
     id: m.id, name: m.name, theme: (m.theme && m.theme.name) || m.name,
     accent: hex(m.theme && m.theme.accent), mood: hex(m.theme && m.theme.mood),
     custom: CUSTOM_RAW.has(m.id) || undefined,

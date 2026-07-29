@@ -27,6 +27,9 @@ import { getProfile } from '../core/Profile.js';
 import { ModeHUD } from '../ui/ModeHUD.js';
 import { ModeView } from './ModeView.js';
 import { RadioPlayer, RadioPanel } from '../ui/Radio.js';
+import { TdView } from '../td/TdView.js';
+import { TdUi } from '../td/TdUi.js';
+import { applyKit as tdApplyKit, revertAll as tdRevertMods } from '../td/tdWeaponMods.js';
 import * as NG from '../ngames/ngames-arena.js';
 import { getStats } from '../core/Profile.js';
 
@@ -108,7 +111,10 @@ export class ArenaMode {
     this.radioPanel = new RadioPanel(ctx, (id) => this.conn.sendVote('radio', id));
     // N GAMES: local match tally (kills/deaths/streak) → sessions + achievements
     this._match = { kills: 0, deaths: 0, streak: 0, best: 0, start: Date.now() };
+    // CO-OP TOWER DEFENSE view/UI (built when the lobby mode becomes 'td')
+    this.tdView = null; this.tdUi = null; this._tdKit = null; this._tdKitHash = '';
     ctx.input.onKeyDown('KeyB', () => {
+      if (this.modeSnap?.id === 'td') return; // TD owns B (build panel — TdUi)
       if (this.mapSelect.isOpen) { this.mapSelect.close(); ctx.input.popUI('mapselect'); }
       else { ctx.input.pushUI('mapselect'); this.mapSelect.open(); }
     });
@@ -144,13 +150,30 @@ export class ArenaMode {
   }
 
   // CUSTOM maps force ARENA pickups: the player is stripped to a starter loadout
-  // (knife + pistol) and must FIND guns as map pickups. Every other map keeps the
-  // full arsenal (weapon wheel). Re-applied on spawn/respawn (map + death).
+  // (knife + pistol) and must FIND guns as map pickups. CO-OP TD strips to the
+  // ARMORY kit (pistol + purchases, max 2 — no melee). Everything else keeps the
+  // full arsenal (weapon wheel). Re-applied on spawn/respawn (map + death + kit).
   _applyLoadout() {
     const wm = this.ctx.weapons;
     if (!wm?.setAcquired) return;
-    if (this.map?.custom) wm.setAcquired(CUSTOM_START_WEAPONS);
+    if (this.modeSnap?.id === 'td') wm.setAcquired(this._tdKit?.guns || ['pistol']);
+    else if (this.map?.custom) wm.setAcquired(CUSTOM_START_WEAPONS);
     else wm.setAcquired(wm.defs.map((d) => d.id));
+  }
+
+  // enter/leave the co-op TD presentation layer
+  _setTdActive(on) {
+    if (on && !this.tdView) {
+      this.tdView = new TdView(this.ctx, this);
+      this.tdUi = new TdUi(this.ctx, this.conn, this.tdView);
+      NG.setPresence({ mode: 'TD', status: 'holding the line' });
+    } else if (!on && this.tdView) {
+      this.tdView.dispose(); this.tdView = null;
+      this.tdUi.dispose(); this.tdUi = null;
+      this._tdKit = null; this._tdKitHash = '';
+      tdRevertMods();
+      this._applyLoadout();
+    }
   }
 
   // resolve a player's { name, color } for feed/killcam
@@ -176,7 +199,10 @@ export class ArenaMode {
       if (w.mode) {
         this.modeSnap = w.mode; this.modeHUD.update(w.mode); this.modeView.sync(w.mode, conn.id);
         NG.setPresence({ mode: NG_MODE[w.mode.id] || w.mode.id });
+        this._setTdActive(w.mode.id === 'td');
       }
+      // menu TD channel: ?td=1 asks the lobby for TOWER DEFENSE (vote; instant solo)
+      if (new URLSearchParams(location.search).has('td') && w.mode?.id !== 'td') this.conn.sendSetMode('td');
       // crew radio: adopt the lobby's shared station
       if (w.radio) {
         this.radioPanel.setStations(w.radio.stations, w.radio.current);
@@ -210,6 +236,22 @@ export class ArenaMode {
         this.modeSnap = snap.mode;
         this.modeHUD.update(snap.mode);
         this.modeView.sync(snap.mode, conn.id);
+      }
+      // ---- co-op TD channels ----
+      if (snap.td && this.tdUi) this.tdUi.setLight(snap.td);
+      if (snap.tdH && this.tdView) this.tdView.applyHeavy(snap.tdH);
+      if (snap.tdKit) {
+        const hash = JSON.stringify(snap.tdKit);
+        if (hash !== this._tdKitHash) {
+          this._tdKitHash = hash;
+          this._tdKit = snap.tdKit;
+          this.tdUi?.setKit(snap.tdKit);
+          tdApplyKit(snap.tdKit);      // handling mods (rpm/mag/reload/spread)
+          this._applyLoadout();        // owned-gun set follows the kit
+          // mobility self-upgrades: scale the shared movement speedMult
+          const sp = 1 + (snap.tdKit.up?.pspeed | 0) * 0.07;
+          if (this.pred?.pred) this.pred.pred.speedMult = sp;
+        }
       }
       const me = snap.players.find((p) => p.id === conn.id);
       if (me) {
@@ -262,7 +304,25 @@ export class ArenaMode {
       this.modeSnap = m; this.modeHUD.update(m); this.modeView.sync(m, conn.id);
       this.mapSelect?.setCurrentMode?.(m.id);
       NG.setPresence({ mode: NG_MODE[m.id] || m.id });
+      this._setTdActive(m.id === 'td');
+      this._applyLoadout();
     });
+
+    // ---- co-op TD lifecycle events ----
+    conn.on('td_ack', (m) => { if (m) this.tdUi?.ack(m); });
+    conn.on('td_wave', (e) => {
+      if (!e) return;
+      this.tdUi?.wave(e);
+      NG.setPresence({ status: `holding the line · wave ${e.wave}` });
+      if (e.wave >= 10) NG.unlock(NG.ACH.TD_WAVE_10);
+    });
+    conn.on('td_wavedone', (e) => { if (e) this.tdUi?.waveDone(e); });
+    conn.on('td_over', (e) => {
+      if (!e) return;
+      this.tdUi?.over(e);
+      NG.reportMatchEnd({ mode: 'TD', wave: e.wave, playtimeSec: 0, score: e.wave * 100 });
+    });
+    conn.on('td_reset', () => this.tdUi?.resetRun());
     conn.on('mode_event', (e) => {
       if (e?.kind === 'capture') {
         this._flashPickup(`${e.team === 0 ? 'RED' : 'BLUE'} FLAG CAPTURED`);
@@ -558,6 +618,7 @@ export class ArenaMode {
     this.projView.update(dt, renderTime);
     this.pickupView.update(dt);
     this.modeView.update(dt);
+    if (this.tdView) { this.tdView.update(dt); this.tdUi.update(dt); }
     this.dmgIndicator.update(dt);
     this.killFeed.update(dt);
     this.accoladeFeed.update(dt);

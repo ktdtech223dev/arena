@@ -274,6 +274,21 @@ io.on('connection', (socket) => {
   // BOTS: any crew member can add/remove (crew-scale trust). Difficulty per bot.
   socket.on('addBot', (b) => { if (player) game.bots.add(b?.difficulty); });
   socket.on('removeBot', () => { if (player) game.bots.remove(); });
+
+  // ---- CO-OP TOWER DEFENSE commands (only live while the lobby mode is td).
+  // Every op answers with td_ack {op, ok, why?...} so the UI can react.
+  const tdOp = (op, fn) => socket.on(op, (m) => {
+    if (!player || game.mode.id !== 'td') return;
+    try { socket.emit('td_ack', { op, ...(fn(m || {}) || { ok: false }) }); }
+    catch { socket.emit('td_ack', { op, ok: false }); }
+  });
+  tdOp('td_place', (m) => game.tdSim.place(player, m.defId, +m.x, +m.z));
+  tdOp('td_upgrade', (m) => game.tdSim.upgradeUnit(player, m.uid | 0, m.path | 0));
+  tdOp('td_sell', (m) => game.tdSim.sell(player, m.uid | 0));
+  tdOp('td_start', () => game.tdSim.startWave(player));
+  tdOp('td_buyweapon', (m) => game.tdSim.buyWeapon(player, m.id, m.drop));
+  tdOp('td_wupgrade', (m) => game.tdSim.upgradeWeapon(player, m.id, m.path | 0));
+  tdOp('td_selfup', (m) => game.tdSim.selfUpgrade(player, m.id));
   // radio: ALWAYS a vote (even solo — floor(1/2)+1 = 1 → instant for one player).
   socket.on('vote', (v) => {
     if (!player || !v || typeof v.id !== 'string') return;

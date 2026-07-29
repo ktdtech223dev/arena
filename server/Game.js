@@ -14,6 +14,7 @@ import { Accolades } from './Accolades.js';
 import { Pickups } from './Pickups.js';
 import { ModeState, MODES } from './Modes.js';
 import { BotManager } from './Bots.js';
+import { TdSim } from './TdSim.js';
 import { CUSTOM_RAW } from '../shared/maps.js';
 
 const TICK_MS = 1000 / TICK_RATE;
@@ -29,6 +30,7 @@ export class Game {
     this.accolades = new Accolades(io, lobby, ACCOLADES); // server-authoritative kill medals
     this.mode = new ModeState(this); // game-mode engine (ffa/tdm/ctf/koth/oddball)
     this.bots = new BotManager(this); // server-side bots (custom-match filler)
+    this.tdSim = new TdSim(this);     // co-op Tower Defense (active when mode 'td')
     this.tickCount = 0;
     this._timer = null; this._acc = 0; this._last = 0;
   }
@@ -62,6 +64,11 @@ export class Game {
 
   setMode(id) {
     if (!MODES[id]) return;
+    const was = this.mode.id;
+    // TD is map-bound: entering swaps to FOUNDRY (remembering where we were) and
+    // resets the run; leaving restores the previous arena map.
+    if (id === 'td' && was !== 'td') { this._preTdMap = this.map.mapId; this.tdSim.reset(); this.setMap('foundry'); }
+    else if (was === 'td' && id !== 'td') { this.setMap(this._preTdMap && this._preTdMap !== 'foundry' ? this._preTdMap : 'spire'); }
     this.mode.set(id);
     this.accolades.resetMatch();
     this.io.emit('mode_change', this.mode.serialize(Date.now()));
@@ -185,6 +192,8 @@ export class Game {
 
   // Area splash → players (falloff) AND map entities (barrels chain, walls break).
   splashAll(center, radius, maxDmg, minFrac, attackerId, weapon, now) {
+    // co-op TD: explosions also carve into the horde
+    if (this.mode.id === 'td') this.tdSim.playerSplash(center, radius, maxDmg, attackerId);
     for (const pl of this.lobby.players.values()) {
       if (!pl.alive) continue;
       const cy = Math.max(pl.move.py, Math.min(pl.move.py + (pl.move.height || 1.8), center.y));
@@ -224,6 +233,7 @@ export class Game {
     // 4) map mechanics (doors open/close, hazard damage)
     this.map.step(SERVER_DT, t, players, api);
     this.mode.step(SERVER_DT, now, players); // mode scoring: hill/skull/flags/timer
+    if (this.mode.id === 'td') this.tdSim.step(SERVER_DT, now, players); // co-op horde
 
     // 5) networked projectiles
     this.projectiles.step(SERVER_DT, players, api);
@@ -240,7 +250,14 @@ export class Game {
         // impulse opposite the aim (rocket-jump). No ray — pure force + chip damage.
         if (combat?.blast) { this._concussion(shooter, fire, combat.blast, players, now); continue; }
         let hitDist = 0; // 0 → client tracer runs to max range (a miss)
-        if (WEAPON_COMBAT[fire.weaponId]?.pellets) {
+        if (this.mode.id === 'td') {
+          // CO-OP TD: shots resolve against the HORDE (walls occlude; per-player
+          // gun-tree damage multipliers apply inside). Pellets fold into one slug.
+          const c = WEAPON_COMBAT[fire.weaponId];
+          const eff = c?.pellets ? { damage: (c.damage || 10) * c.pellets * 0.6 } : c;
+          const r = this.tdSim.playerShot(shooter, fire, world, eff);
+          if (r) hitDist = r.dist;
+        } else if (WEAPON_COMBAT[fire.weaponId]?.pellets) {
           const map = resolvePellets(shooter, fire, players, now, shooter.clockOffset || 0);
           for (const [vid, r] of map) if (r.dmg > 0) this.applyDamage(shooter.id, vid, r.dmg, r.part, fire.weaponId, now);
         } else {
@@ -310,12 +327,19 @@ export class Game {
     const mapSnap = this.map.serialize();
     const pickSnap = this.pickups.serialize();
     const modeSnap = this.mode.serialize(now);
+    // co-op TD: light state every snap; heavy (enemies/units/fx) + personal kit
+    // at ~16 Hz — the client re-derives exact positions from shared path math.
+    const isTd = this.mode.id === 'td';
+    const tdLight = isTd ? this.tdSim.serialize() : null;
+    const tdHeavy = isTd && (this.tickCount % 8 === 0) ? this.tdSim.serializeHeavy() : null;
     for (const p of players.values()) {
       const snap = buildSnapshot(players, this.tickCount, now, p);
       snap.projectiles = projSnap;
       snap.map = mapSnap;
       snap.pickups = pickSnap;
       snap.mode = modeSnap;
+      if (tdLight) snap.td = tdLight;
+      if (tdHeavy) { snap.tdH = tdHeavy; snap.tdKit = this.tdSim.serializeKit(p.id); }
       this.io.to(p.id).emit('snapshot', snap);
     }
   }

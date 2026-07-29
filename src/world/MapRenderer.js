@@ -15,6 +15,7 @@ import { Bastion } from './maps/Bastion.js';
 import { Warren } from './maps/Warren.js';
 import { Drift } from './maps/Drift.js';
 import { Halo } from './maps/Halo.js';
+import { Foundry } from './maps/Foundry.js';
 import { CustomEnv } from './maps/CustomEnv.js';
 
 // registry — add each bespoke map class here as it is built
@@ -27,6 +28,7 @@ const MAP_CLASSES = {
   warren: Warren,
   drift: Drift,
   halo: Halo,
+  foundry: Foundry,
 };
 
 // Fallback: renders the collider set as plain role-colored boxes + a default sky/
