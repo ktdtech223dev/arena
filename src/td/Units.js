@@ -3,6 +3,13 @@
 // barrels, coils, banners) and maxed paths glow gold — a maxed tower reads
 // across the map. Rebuilt whenever a unit's tiers change on the wire.
 import * as THREE from 'three';
+import { BUILDERS as TOWERS_A } from './models/towers_a.js';
+import { BUILDERS as TOWERS_B } from './models/towers_b.js';
+import { BUILDERS as TOWERS_C } from './models/towers_c.js';
+
+// the polished per-tower model registry (15 bespoke designs; the generic
+// chassis below stays as a safety fallback for any missing/throwing builder)
+const POLISHED = { ...TOWERS_A, ...TOWERS_B, ...TOWERS_C };
 
 const T3_GLOW = 0xffd166;
 const ACCENT = { damage: 0xff8a4a, buff: 0x9fe86a, debuff: 0x7db2ff, economy: 0xffd166 };
@@ -25,6 +32,14 @@ function cyl(parent, m, r0, r1, h, x, y, z, seg = 10) {
 
 /** Build a tower model for (def, tiers). Returns { group, parts:{yawNode,spinner?} } */
 export function buildUnitModel(def, tiers = [0, 0]) {
+  const polished = POLISHED[def.id];
+  if (polished) {
+    try { return polished(THREE, tiers); } catch { /* fall back to the generic chassis */ }
+  }
+  return buildGenericUnitModel(def, tiers);
+}
+
+function buildGenericUnitModel(def, tiers = [0, 0]) {
   const g = new THREE.Group();
   const acc = ACCENT[def.role] || 0xffffff;
   const t3 = tiers[0] >= 3 || tiers[1] >= 3;

@@ -12,14 +12,13 @@ import { buildEnemyModel, animateEnemy } from './Enemies.js';
 import { buildUnitModel, ACCENT } from './Units.js';
 import * as NG from '../ngames/ngames-arena.js';
 
-// tower sfx → best existing cue until the dedicated td_* synths land (Phase C
-// swaps these values for the real per-tower sounds; call sites stay unchanged).
+// tower sfx → dedicated per-tower synth cues (TD TOWER section in core/Audio.js).
 const TD_SFX = {
-  td_gatling: ['smg_fire', 1.25], td_rail: ['sniper_fire', 0.85], td_mortar: ['exotic_fire', 0.9],
-  td_tesla: ['sawblade_bounce', 1.2], td_sniper: ['sniper_fire', 1.1], td_hive: ['seeker_launch', 1.0],
-  td_plasma: ['wallrun_loop', 1.4], td_cryo: ['land_soft', 1.6], td_acid: ['slide_start', 0.8],
-  td_grav: ['land_hard', 0.5], td_shield: ['equip', 0.7], td_banner: ['ui_open', 0.8],
-  td_overclock: ['ui_tick', 0.9], td_depot: ['reload_magin', 1.0], td_bounty: ['hitmarker', 0.8],
+  td_gatling: ['td_gatling', 1], td_rail: ['td_rail', 1], td_mortar: ['td_mortar', 1],
+  td_tesla: ['td_tesla', 1], td_sniper: ['td_sniper', 1], td_hive: ['td_hive', 1],
+  td_plasma: ['td_plasma', 1], td_cryo: ['td_cryo', 1], td_acid: ['td_acid', 1],
+  td_grav: ['td_grav', 1], td_shield: ['td_shield', 1], td_banner: ['td_banner', 1],
+  td_overclock: ['td_overclock', 1], td_depot: ['td_depot', 1], td_bounty: ['td_bounty', 1],
 };
 
 export class TdView {
@@ -34,6 +33,11 @@ export class TdView {
     this._resupplyT = 0;
     this._barGeo = new THREE.PlaneGeometry(1, 1);
     this._camQ = new THREE.Quaternion();
+    // ---- VFX pools ----
+    this._shells = [];  // animated mortar lobs {from,to,t,dur,mesh,r,def}
+    this._rings = [];   // expanding shock rings {mesh,t,dur,r}
+    this._shellGeo = new THREE.SphereGeometry(0.16, 8, 6);
+    this._ringGeo = new THREE.TorusGeometry(1, 0.07, 6, 28);
   }
 
   // ---------------------------------------------------------- wire intake ---
@@ -132,6 +136,41 @@ export class TdView {
     this.ctx.events.emit('shot:tracer', { from, to, def: { tracer: { color, width } } });
   }
 
+  // jagged lightning hop: subdivide + jitter midpoints so tesla arcs read as BOLTS
+  _bolt(from, to, color) {
+    const segs = 3;
+    let prev = from;
+    for (let i = 1; i <= segs; i++) {
+      const f = i / segs;
+      const p = new THREE.Vector3().lerpVectors(from, to, f);
+      if (i < segs) {
+        p.x += (Math.random() - 0.5) * 0.9;
+        p.y += (Math.random() - 0.5) * 0.7 + 0.2;
+        p.z += (Math.random() - 0.5) * 0.9;
+      }
+      this._tracer(prev, p, color, 0.05);
+      prev = p;
+    }
+  }
+
+  // animated mortar lob: a glowing shell arcs from the tube; the BOOM lands when
+  // it does (the server already applied damage — this is presentation timing).
+  _lobShell(from, to, r, def) {
+    const mesh = new THREE.Mesh(this._shellGeo, new THREE.MeshBasicMaterial({ color: 0xffb24a, toneMapped: false }));
+    mesh.position.copy(from);
+    this.group.add(mesh);
+    this._shells.push({ from, to, t: 0, dur: 0.55, mesh, r, def });
+  }
+
+  _ring(pos, color, r, dur = 0.45) {
+    const mesh = new THREE.Mesh(this._ringGeo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.set(pos.x, 0.15, pos.z);
+    mesh.scale.setScalar(0.2);
+    this.group.add(mesh);
+    this._rings.push({ mesh, t: 0, dur, r });
+  }
+
   _burst(pos, color, count = 14, speed = 5, size = 0.2) {
     this.ctx.fx?.particles?.burst?.({ position: pos, count, color, speed, spread: 1, life: 0.5, size, gravity: 3, drag: 1.2 });
   }
@@ -154,26 +193,28 @@ export class TdView {
       case 'chain': {
         if (!fx.pts?.length) break;
         let prev = muzzle || V(fx.pts[0][0], fx.pts[0][1], fx.pts[0][2]);
-        for (const p of fx.pts) { const cur = V(p[0], p[1], p[2]); this._tracer(prev, cur, 0x7df9ff, 0.045); prev = cur; }
+        for (const p of fx.pts) { const cur = V(p[0], p[1], p[2]); this._bolt(prev, cur, 0x7df9ff); prev = cur; }
         if (u) this._sfx(u.def, muzzle);
         break; }
       case 'drone':
         if (muzzle) { this._tracer(muzzle, V(fx.x, fx.y, fx.z), 0xffe08a, 0.03); this._sfx(u.def, muzzle); }
         break;
       case 'mortar':
-        this._burst(V(fx.x, fx.y + 0.5, fx.z), 0xffb24a, 20 + (fx.r | 0) * 4, 6 + (fx.r | 0), 0.3);
+        // fire thump now; the shell arcs and BOOMS on arrival (see update loop)
         if (u) this._sfx(u.def, muzzle);
-        (this.ctx.audioBank || this.ctx.audio).play('explosion', { position: V(fx.x, fx.y, fx.z), volume: 0.5 });
+        this._lobShell(muzzle || V(fx.x, fx.y + 8, fx.z), V(fx.x, fx.y, fx.z), fx.r | 0, u?.def);
         break;
       case 'boom':
         this._burst(V(fx.x, fx.y, fx.z), 0xff8a3a, 16, 6, 0.24);
         break;
       case 'freeze':
         this._burst(V(fx.x, 1, fx.z), 0x7df9ff, 26, (fx.r | 0), 0.18);
+        this._ring(V(fx.x, 0, fx.z), 0x7df9ff, fx.r | 0);
         if (u) this._sfx(u.def, V(fx.x, 1, fx.z));
         break;
       case 'pulse':
         this._burst(V(fx.x, 1, fx.z), 0x4da6ff, 22, (fx.r | 0), 0.2);
+        this._ring(V(fx.x, 0, fx.z), 0x4da6ff, fx.r | 0, 0.35);
         break;
       case 'die': {
         this._burst(V(fx.x, fx.y, fx.z), fx.f ? 0xc96af0 : 0x9fe86a, 20, 5, 0.2);
@@ -194,6 +235,31 @@ export class TdView {
     this._t += dt;
     const cam = this.ctx.camera;
     if (cam) cam.getWorldQuaternion(this._camQ);
+
+    // mortar shells: parabolic lob → boom on arrival
+    for (let i = this._shells.length - 1; i >= 0; i--) {
+      const s = this._shells[i];
+      s.t += dt;
+      const f = Math.min(1, s.t / s.dur);
+      s.mesh.position.lerpVectors(s.from, s.to, f);
+      s.mesh.position.y += Math.sin(f * Math.PI) * 6; // arc height
+      if (f >= 1) {
+        this.group.remove(s.mesh); s.mesh.material.dispose();
+        this._burst(s.to.clone().add(new THREE.Vector3(0, 0.5, 0)), 0xffb24a, 20 + s.r * 4, 6 + s.r, 0.3);
+        this._ring(s.to, 0xff8a4a, Math.max(2, s.r), 0.4);
+        (this.ctx.audioBank || this.ctx.audio).play('explosion', { position: s.to, volume: 0.55 });
+        this._shells.splice(i, 1);
+      }
+    }
+    // expanding shock rings
+    for (let i = this._rings.length - 1; i >= 0; i--) {
+      const r = this._rings[i];
+      r.t += dt;
+      const f = Math.min(1, r.t / r.dur);
+      r.mesh.scale.setScalar(0.2 + f * r.r);
+      r.mesh.material.opacity = 0.8 * (1 - f);
+      if (f >= 1) { this.group.remove(r.mesh); r.mesh.material.dispose(); this._rings.splice(i, 1); }
+    }
 
     for (const e of this.enemies.values()) {
       e.t += dt;
@@ -261,6 +327,10 @@ export class TdView {
     for (const [id, e] of this.enemies) this._removeEnemy(id, e);
     for (const u of this.units.values()) if (u.model) this._disposeModel(u.model.group);
     this.units.clear();
+    for (const s of this._shells) { this.group.remove(s.mesh); s.mesh.material.dispose(); }
+    for (const r of this._rings) { this.group.remove(r.mesh); r.mesh.material.dispose(); }
+    this._shells.length = 0; this._rings.length = 0;
+    this._shellGeo.dispose(); this._ringGeo.dispose();
     this.ctx.scene.remove(this.group);
   }
 }

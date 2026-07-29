@@ -841,6 +841,176 @@ const SOUNDS = {
     note(0.2, 1568, 0.18, 0.2, 1.15); // G6, held bright
     addNoise(b, sr, { dur: 0.012, attack: 0.0004, tau: 0.004, hp: 2200, lp0: 11000, gain: 0.18 });
   } },
+
+  /* ==================================================================== */
+  /* TD TOWER SFX — dedicated per-tower cues for ARENA Tower Defense.     */
+  /* All SHORT and mixed quiet (gain 0.2–0.45) so they sit UNDER gunfire. */
+  /* Keys match TD_SFX in src/td/TdView.js exactly.                       */
+  /* ==================================================================== */
+
+  // gatling: snappy mechanical burst tick — dry bright tick + tiny metal clack.
+  td_gatling: { dur: 0.09, gain: 0.32, varMult: 1.6, synth(b, sr) {
+    addNoise(b, sr, { dur: 0.02, attack: 0.0004, tau: 0.006, hp: 900, lp0: 8500, lp1: 2600, gain: 0.9 });
+    clack(b, sr, { t0: 0.002, tone: 2500, weight: 0.25, gain: 0.6, ring: 0.01 });
+    addTone(b, sr, { dur: 0.05, f0: 420, f1: 150, tau: 0.016, type: 'tri', gain: 0.55 });
+    softClip(b, 1.6);
+  } },
+
+  // rail: sharp crack + long descending electric whine as the rail discharges.
+  td_rail: { dur: 0.5, gain: 0.4, synth(b, sr) {
+    addNoise(b, sr, { dur: 0.025, attack: 0.0003, tau: 0.008, hp: 1400, lp0: 12000, lp1: 3500, gain: 1.1 });
+    addNoise(b, sr, { dur: 0.09, attack: 0.001, tau: 0.03, hp: 300, lp0: 5000, lp1: 900, gain: 0.6 });
+    // long descending whine — the rail ringing down after the shot
+    addTone(b, sr, { t0: 0.015, dur: 0.46, f0: 3400, f1: 480, attack: 0.004, tau: 0.15,
+      type: 'saw', vibHz: 26, vibDepth: 0.025, gain: 0.4 });
+    addTone(b, sr, { t0: 0.02, dur: 0.36, f0: 1700, f1: 320, attack: 0.006, tau: 0.11, gain: 0.22 });
+    softClip(b, 1.8);
+  } },
+
+  // mortar: deep muffled thump + a thin shell whistle receding upward-then-down.
+  td_mortar: { dur: 0.5, gain: 0.42, synth(b, sr) {
+    thunk(b, sr, { t0: 0, weight: 0.9, gain: 1.1 });
+    addTone(b, sr, { t0: 0, dur: 0.24, f0: 80, f1: 42, tau: 0.1, type: 'sine', gain: 1.0 });
+    addNoise(b, sr, { dur: 0.16, attack: 0.001, tau: 0.05, lp0: 1100, lp1: 220, gain: 0.7, pink: true });
+    // shell whistle tail: thin sine rising then thinning out as the round departs
+    addTone(b, sr, { t0: 0.09, dur: 0.4, f0: 1500, f1: 2600, attack: 0.05, tau: 0.14,
+      vibHz: 14, vibDepth: 0.03, gain: 0.14 });
+    softClip(b, 1.8);
+  } },
+
+  // tesla: crackling zap — a spray of micro noise bursts + jittery high tones.
+  td_tesla: { dur: 0.2, gain: 0.34, varMult: 1.6, synth(b, sr) {
+    for (let i = 0; i < 7; i++) {
+      const t0 = i * 0.022 + (i % 3) * 0.004;
+      addNoise(b, sr, { t0, dur: 0.014, attack: 0.0003, tau: 0.004,
+        hp: 1800, lp0: 12000, lp1: 5000, gain: 0.7 - i * 0.06 });
+      addTone(b, sr, { t0, dur: 0.03, f0: 2600 + (i * 977) % 2200, f1: 1400 + (i * 613) % 1400,
+        tau: 0.008, type: 'square', gain: 0.16 });
+    }
+    addTone(b, sr, { dur: 0.16, f0: 130, f1: 95, tau: 0.06, type: 'square', gain: 0.12 }); // arc body buzz
+    softClip(b, 1.9);
+  } },
+
+  // cryo: glassy shimmer + icy hiss — high detuned glass partials over pink air.
+  td_cryo: { dur: 0.38, gain: 0.3, synth(b, sr) {
+    addPartials(b, sr, { gain: 0.8, partials: [
+      { f: 3520, a: 1, tau: 0.09 }, { f: 3540, a: 0.7, tau: 0.08 },
+      { f: 5280, a: 0.5, tau: 0.06 }, { f: 7040, a: 0.3, tau: 0.045 },
+      { f: 2640, a: 0.45, tau: 0.11 },
+    ] });
+    // icy hiss, closing down like frost settling
+    addNoise(b, sr, { dur: 0.32, attack: 0.01, tau: 0.11, hp: 2600, lp0: 11000, lp1: 4200, gain: 0.3, pink: true });
+    addTone(b, sr, { t0: 0.02, dur: 0.2, f0: 1760, f1: 1180, attack: 0.02, tau: 0.08, gain: 0.14 });
+  } },
+
+  // acid: wet spurt + sizzle — a low squelchy burst then a thin frying hiss.
+  td_acid: { dur: 0.34, gain: 0.32, varMult: 1.4, synth(b, sr) {
+    // wet spurt: dark pink blip with a downward glug tone
+    addNoise(b, sr, { dur: 0.07, attack: 0.002, tau: 0.024, lp0: 750, lp1: 200, gain: 1.0, pink: true });
+    addTone(b, sr, { dur: 0.09, f0: 300, f1: 90, tau: 0.03, type: 'sine', gain: 0.7 });
+    // sizzle: bright crackly noise decaying as the acid eats in
+    addNoise(b, sr, { t0: 0.05, dur: 0.28, attack: 0.02, tau: 0.1, hp: 2200, lp0: 9000, lp1: 3000, gain: 0.32 });
+    addNoise(b, sr, { t0: 0.07, dur: 0.2, attack: 0.015, tau: 0.07, hp: 1000, lp0: 4000, lp1: 1500, gain: 0.2, pink: true });
+    softClip(b, 1.5);
+  } },
+
+  // hive: buzzy wing-swarm chirp — detuned saw buzzes with fast flutter vibrato.
+  td_hive: { dur: 0.26, gain: 0.3, varMult: 1.3, synth(b, sr) {
+    addTone(b, sr, { dur: 0.22, f0: 340, f1: 520, attack: 0.008, tau: 0.08,
+      type: 'saw', vibHz: 52, vibDepth: 0.2, gain: 0.55 });
+    addTone(b, sr, { t0: 0.01, dur: 0.2, f0: 510, f1: 760, attack: 0.01, tau: 0.07,
+      type: 'saw', vibHz: 67, vibDepth: 0.24, gain: 0.35 });
+    addTone(b, sr, { t0: 0.02, dur: 0.16, f0: 1020, f1: 1450, attack: 0.012, tau: 0.055,
+      type: 'tri', vibHz: 80, vibDepth: 0.16, gain: 0.2 });
+    addNoise(b, sr, { dur: 0.18, attack: 0.01, tau: 0.06, hp: 900, lp0: 3600, lp1: 1800, gain: 0.2, pink: true });
+    softClip(b, 1.6);
+  } },
+
+  // sniper (tower): tight supersonic crack — all snap, tiny body, no boom tail.
+  td_sniper: { dur: 0.16, gain: 0.42, synth(b, sr) {
+    addNoise(b, sr, { dur: 0.018, attack: 0.0003, tau: 0.005, hp: 1800, lp0: 14000, lp1: 5000, gain: 1.2 });
+    addNoise(b, sr, { dur: 0.06, attack: 0.0008, tau: 0.02, hp: 400, lp0: 6000, lp1: 1100, gain: 0.6 });
+    addTone(b, sr, { dur: 0.05, f0: 480, f1: 140, tau: 0.016, type: 'tri', attack: 0.0006, gain: 0.8 });
+    addTone(b, sr, { dur: 0.07, f0: 110, f1: 60, tau: 0.024, gain: 0.4 });
+    softClip(b, 2.0);
+  } },
+
+  // banner: short war-horn blast — low brassy saw stack swelling then releasing.
+  td_banner: { dur: 0.75, gain: 0.38, varMult: 0.3, synth(b, sr) {
+    const horn = (f, g) => {
+      addTone(b, sr, { dur: 0.68, f0: f * 0.97, f1: f, attack: 0.06, hold: 0.3, tau: 0.1,
+        type: 'saw', vibHz: 5.5, vibDepth: 0.008, gain: g });
+    };
+    horn(196, 0.5);   // G3 fundamental
+    horn(294, 0.3);   // D4 fifth
+    horn(392, 0.18);  // G4 octave
+    addTone(b, sr, { dur: 0.6, f0: 98, f1: 98, attack: 0.07, hold: 0.26, tau: 0.09, type: 'tri', gain: 0.3 }); // chest
+    addNoise(b, sr, { dur: 0.5, attack: 0.06, hold: 0.2, tau: 0.09, hp: 500, lp0: 2400, lp1: 1400, gain: 0.1, pink: true }); // breath
+    softClip(b, 1.7);
+  } },
+
+  // overclock: rising power-up whirr — motor spinning up with a brightening whine.
+  td_overclock: { dur: 0.4, gain: 0.3, varMult: 0.5, synth(b, sr) {
+    addTone(b, sr, { dur: 0.36, f0: 220, f1: 980, attack: 0.02, hold: 0.14, tau: 0.07,
+      type: 'saw', vibHz: 40, vibDepth: 0.06, gain: 0.45 });
+    addTone(b, sr, { t0: 0.02, dur: 0.34, f0: 440, f1: 1960, attack: 0.03, hold: 0.12, tau: 0.06,
+      type: 'tri', gain: 0.3 });
+    addNoise(b, sr, { dur: 0.34, attack: 0.03, hold: 0.1, tau: 0.08, hp: 600, lp0: 1600, lp1: 5200, gain: 0.25, pink: true });
+    clack(b, sr, { t0: 0.0, tone: 2100, weight: 0.2, gain: 0.35, ring: 0.01 }); // engage click
+    softClip(b, 1.5);
+  } },
+
+  // depot: metallic ammo clack + latch — box drop, shells settle, latch snaps.
+  td_depot: { dur: 0.3, gain: 0.34, varMult: 1.2, synth(b, sr) {
+    clack(b, sr, { t0: 0, tone: 1600, weight: 0.7, gain: 0.9, ring: 0.018 });      // ammo box clack
+    slideFoley(b, sr, { t0: 0.03, dur: 0.09, f0: 1900, f1: 1000, gain: 0.3 });     // shells shifting
+    clack(b, sr, { t0: 0.07, tone: 2700, weight: 0.15, gain: 0.35, ring: 0.008 }); // small rattle
+    clack(b, sr, { t0: 0.16, tone: 2200, weight: 0.45, gain: 0.8, ring: 0.014 });  // latch snap
+    softClip(b, 1.4);
+  } },
+
+  // shield: soft resonant dome pulse — round detuned sine swell, no transient.
+  td_shield: { dur: 0.42, gain: 0.3, varMult: 0.4, synth(b, sr) {
+    addTone(b, sr, { dur: 0.38, f0: 520, f1: 490, attack: 0.05, hold: 0.08, tau: 0.11, gain: 0.7 });
+    addTone(b, sr, { t0: 0.01, dur: 0.34, f0: 782, f1: 736, attack: 0.06, hold: 0.06, tau: 0.09, gain: 0.35 });
+    addTone(b, sr, { t0: 0.02, dur: 0.3, f0: 1042, f1: 985, attack: 0.07, tau: 0.08, gain: 0.16 });
+    addTone(b, sr, { dur: 0.3, f0: 260, f1: 245, attack: 0.05, tau: 0.1, type: 'tri', gain: 0.3 }); // low dome body
+    combTail(b, sr, { delay: 0.03, fb: 0.35, damp: 0.4, wet: 0.18 });
+  } },
+
+  // grav: deep sub warble descending — slow-wobbled sine sinking into the floor.
+  td_grav: { dur: 0.48, gain: 0.4, varMult: 0.5, synth(b, sr) {
+    addTone(b, sr, { dur: 0.44, f0: 95, f1: 38, attack: 0.015, hold: 0.06, tau: 0.15,
+      type: 'sine', vibHz: 11, vibDepth: 0.09, gain: 1.0 });
+    addTone(b, sr, { t0: 0.01, dur: 0.36, f0: 190, f1: 76, attack: 0.02, tau: 0.12,
+      type: 'tri', vibHz: 9, vibDepth: 0.07, gain: 0.35 });
+    addNoise(b, sr, { dur: 0.3, attack: 0.02, tau: 0.1, lp0: 260, lp1: 90, gain: 0.3, pink: true }); // dark air
+    softClip(b, 1.7);
+  } },
+
+  // bounty: bright coin chime arpeggio — three quick glassy dings rising.
+  td_bounty: { dur: 0.36, gain: 0.32, varMult: 0.3, synth(b, sr) {
+    const coin = (t0, f, g) => addPartials(b, sr, { t0, gain: g, partials: [
+      { f, a: 1, tau: 0.07 }, { f: f * 2.01, a: 0.4, tau: 0.05 }, { f: f * 2.98, a: 0.18, tau: 0.035 },
+    ] });
+    coin(0, 1568, 0.7);       // G6
+    coin(0.06, 1976, 0.75);   // B6
+    coin(0.12, 2637, 0.85);   // E7, top sparkle
+    addNoise(b, sr, { dur: 0.008, attack: 0.0004, tau: 0.003, hp: 3000, lp0: 12000, gain: 0.12 });
+  } },
+
+  // plasma: harmonic beam hum pulse — odd-harmonic sine stack that blooms & fades.
+  td_plasma: { dur: 0.3, gain: 0.32, varMult: 0.6, synth(b, sr) {
+    const base = 220;
+    addTone(b, sr, { dur: 0.26, f0: base, f1: base * 1.06, attack: 0.02, hold: 0.08, tau: 0.06,
+      vibHz: 30, vibDepth: 0.02, gain: 0.6 });
+    addTone(b, sr, { dur: 0.24, f0: base * 3, f1: base * 3.18, attack: 0.025, hold: 0.06, tau: 0.05,
+      vibHz: 30, vibDepth: 0.02, gain: 0.3 });
+    addTone(b, sr, { dur: 0.2, f0: base * 5, f1: base * 5.3, attack: 0.03, tau: 0.045, gain: 0.14 });
+    addTone(b, sr, { dur: 0.18, f0: base * 7, f1: base * 7.4, attack: 0.03, tau: 0.04, gain: 0.07 });
+    addNoise(b, sr, { dur: 0.14, attack: 0.01, tau: 0.05, hp: 1400, lp0: 5200, lp1: 2400, gain: 0.12 }); // ionized air
+    softClip(b, 1.6);
+  } },
 };
 
 /* ========================================================================== */

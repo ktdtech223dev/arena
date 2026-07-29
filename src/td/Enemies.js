@@ -5,6 +5,14 @@
 // chitinous violet skitterers/flyers with glow eyes and phase shimmer.)
 import * as THREE from 'three';
 import { ENEMY_DEFS } from '../../shared/tddata.js';
+import { BUILDERS as EN_Z, ANIMATE as AN_Z } from './models/enemies_z.js';
+import { BUILDERS as EN_A, ANIMATE as AN_A } from './models/enemies_a.js';
+
+// polished bespoke bodies (10 distinct silhouettes) + their animators; the
+// original two-template builders below remain as safety fallbacks.
+const POLISHED = { ...EN_Z, ...EN_A };
+const POLISHED_ANIM = { ...AN_Z, ...AN_A };
+const idOf = (def) => { for (const [k, v] of Object.entries(ENEMY_DEFS)) if (v === def) return k; return null; };
 
 const ZOMBIE_SKIN = 0x5a7a3a, ZOMBIE_DARK = 0x3a4a26, GORE = 0x8a2a1e;
 const ALIEN_SHELL = 0x4a2a6e, ALIEN_GLOW = 0xc96af0, ALIEN_EYE = 0x66ff88;
@@ -83,11 +91,19 @@ function buildAlien(def) {
 
 /** Build one enemy body. Returns { group, parts } — animate with animateEnemy. */
 export function buildEnemyModel(def) {
+  const id = idOf(def);
+  const polished = id && POLISHED[id];
+  if (polished) {
+    try { const m = polished(THREE, def); m.__animId = id; return m; } catch { /* fallback */ }
+  }
   return def.family === 'zombie' ? buildZombie(def) : buildAlien(def);
 }
 
 /** Per-frame procedural animation (t = enemy-local clock, moving = speed>0). */
 export function animateEnemy(def, parts, group, t, moving, extras = {}) {
+  const id = idOf(def);
+  const anim = id && POLISHED_ANIM[id];
+  if (anim) { try { anim(parts, group, t, moving, extras); return; } catch { /* fallback */ } }
   const w = moving ? Math.min(1, def.speed / 2) : 0;
   if (def.family === 'zombie') {
     const sw = Math.sin(t * (4 + def.speed)) * 0.5 * w;
