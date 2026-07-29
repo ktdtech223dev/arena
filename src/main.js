@@ -44,14 +44,15 @@ async function boot() {
   // ?mode=range → single-player facility; ?mode=arena → multiplayer arena.
   const params = new URLSearchParams(location.search);
   const mode = params.get('mode');
-  if (mode !== 'range' && mode !== 'arena' && mode !== 'editor') {
+  if (mode !== 'range' && mode !== 'arena' && mode !== 'editor' && mode !== 'td') {
     const { MainMenu } = await import('./ui/MainMenu.js');
     new MainMenu();
     return; // no renderer/game built until a mode is chosen
   }
   const editorMode = mode === 'editor';
   const arenaMode = mode === 'arena';
-  ctx.mode = editorMode ? 'editor' : arenaMode ? 'arena' : 'range';
+  const tdMode = mode === 'td';
+  ctx.mode = editorMode ? 'editor' : arenaMode ? 'arena' : tdMode ? 'td' : 'range';
 
   // ---- renderer / scene / camera ------------------------------------------
   ctx.THREE = THREE;
@@ -149,6 +150,16 @@ async function boot() {
       raycastShot: () => null, fixedUpdate() {},
     };
     ctx.world.raycastShot = (o, d, m) => ctx.world.targets.raycastShot(o, d, m);
+  } else if (tdMode) {
+    // FPS TOWER DEFENSE: its own code-built arena + enemy-target sim, exposing
+    // the SAME world interfaces as RANGE so the controller + every gun works.
+    const { TDMode } = await import('./td/TDMode.js');
+    ctx.td = new TDMode(ctx);
+    ctx.world.colliders = ctx.td.world.colliders;
+    ctx.world.range = ctx.td.world.range;
+    ctx.world.targets = ctx.td.targets;
+    ctx.world.course = ctx.td.world.course;
+    ctx.world.raycastShot = (o, d, m) => ctx.td.targets.raycastShot(o, d, m);
   } else {
     ctx.world.colliders = new Colliders(ctx);
     ctx.world.range = new RangeWorld(ctx);
@@ -182,7 +193,7 @@ async function boot() {
   ctx.ui.hud = new HUD(ctx);
   ctx.ui.editor = new CrosshairEditor(ctx);
   ctx.ui.wheel = new WeaponWheel(ctx);
-  ctx.ui.rangeMenu = new RangeMenu(ctx);
+  ctx.ui.rangeMenu = tdMode ? { render() {}, close() {} } : new RangeMenu(ctx); // TD owns B/G keys
   ctx.ui.debug = new DebugPanel(ctx);
   ctx.ui.perf = new PerfHUD(ctx, { visible: false }); // toggle with J (map profiling)
 

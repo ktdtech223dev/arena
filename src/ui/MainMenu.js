@@ -112,9 +112,8 @@ function injectCss(id, t) { if (document.getElementById(id)) return; const s = d
 function go(mode) { const u = new URL(location.href); u.searchParams.set('mode', mode); location.href = u.toString(); }
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-// Flipped to true when the TD mode registers in main.js (its milestone lands
-// later in the pipeline) — until then the channel announces instead of bouncing.
-const TD_READY = false;
+// The FPS Tower Defense mode is live (?mode=td).
+const TD_READY = true;
 
 // captions shown in the ticker per hovered channel (MW2-style description strip)
 const CAPTIONS = {
