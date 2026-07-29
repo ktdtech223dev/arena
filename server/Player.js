@@ -108,7 +108,8 @@ export class Player {
   }
 
   publicInfo() {
-    return { id: this.id, crew: this.crew.key, name: this.crew.name, color: this.crew.color, weaponId: this.weaponId };
+    // name prefers the explicit display name (profiles; bots get "BOT X [DIFF]")
+    return { id: this.id, crew: this.crew.key, name: this.name || this.crew.name, color: this.crew.color, weaponId: this.weaponId, bot: this.isBot || undefined };
   }
 
   snap() {

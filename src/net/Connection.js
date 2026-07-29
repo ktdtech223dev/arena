@@ -48,6 +48,8 @@ export class Connection {
   sendSetMap(id) { this._send('setMap', { id }); }
   sendSetMode(id) { this._send('setMode', { id }); }
   sendVote(kind, id) { this._send('vote', { kind, id }); }
+  sendAddBot(difficulty) { this._send('addBot', { difficulty }); }
+  sendRemoveBot() { this._send('removeBot', {}); }
   sendSwap(weaponId) { this._send('swap', { weaponId }); }
   sendReload(weaponId) { this._send('reload', { weaponId }); }
   sendSummaryReq() { this._send('accolade_summary_req', {}); }

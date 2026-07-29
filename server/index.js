@@ -178,13 +178,15 @@ const RADIO_STATIONS = [
 let radioStation = 'off';
 const votes = new Map(); // 'kind:id' -> Set(playerSocketIds)
 
+function humanCount() { let n = 0; for (const p of lobby.players.values()) if (!p.isBot) n++; return n; }
+
 function castVote(kind, id, player) {
   const key = `${kind}:${id}`;
   let set = votes.get(key);
   if (!set) votes.set(key, (set = new Set()));
   if (set.has(player.id)) return; // one vote per player per option
   set.add(player.id);
-  const needed = Math.floor(lobby.count / 2) + 1; // strictly >50%
+  const needed = Math.floor(humanCount() / 2) + 1; // strictly >50% of HUMANS (bots don't vote)
   io.emit('vote_update', { kind, id, votes: set.size, needed, by: player.name || player.crew?.name });
   if (set.size >= needed) {
     for (const k of [...votes.keys()]) if (k.startsWith(`${kind}:`)) votes.delete(k); // vote resolved
@@ -258,17 +260,20 @@ io.on('connection', (socket) => {
     game.throwGrenade(player, t.origin, t.dir);
   });
 
-  // map/mode switches VOTE when 2+ players are online (>50% to pass); solo = instant.
+  // map/mode switches VOTE when 2+ HUMANS are online (>50% to pass); solo = instant.
   socket.on('setMap', (m) => {
     if (!player || !m || !m.id || !MAPS[m.id]) return;
-    if (lobby.count <= 1) game.setMap(m.id);
+    if (humanCount() <= 1) game.setMap(m.id);
     else castVote('map', m.id, player);
   });
   socket.on('setMode', (m) => {
     if (!player || !m || !m.id || !MODES[m.id]) return;
-    if (lobby.count <= 1) game.setMode(m.id);
+    if (humanCount() <= 1) game.setMode(m.id);
     else castVote('mode', m.id, player);
   });
+  // BOTS: any crew member can add/remove (crew-scale trust). Difficulty per bot.
+  socket.on('addBot', (b) => { if (player) game.bots.add(b?.difficulty); });
+  socket.on('removeBot', () => { if (player) game.bots.remove(); });
   // radio: ALWAYS a vote (even solo — floor(1/2)+1 = 1 → instant for one player).
   socket.on('vote', (v) => {
     if (!player || !v || typeof v.id !== 'string') return;

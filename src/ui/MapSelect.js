@@ -222,6 +222,29 @@ export class MapSelect {
     else this.setCurrent(id); // optimistic re-highlight; server map_change confirms via setCurrent
   }
 
+  // ---- bot chips (add a bot at a difficulty / remove the last one) ----------
+  setBots(onAdd, onRemove) {
+    if (!this.modesEl || this._botsEl) return;
+    injectCss('map-select-bots-css', `
+      .ms-bots{display:flex;gap:8px;flex-wrap:wrap;padding:0 2px 12px;align-items:center;}
+      .ms-bots .lb{font-size:10px;font-weight:800;letter-spacing:.2em;color:#5a6b7a;margin-right:2px;}
+      .ms-bot{font-size:11px;font-weight:800;letter-spacing:.1em;padding:6px 11px;border-radius:6px;cursor:pointer;
+        color:#9fe86a;background:rgba(16,26,16,0.9);border:1px solid rgba(159,232,106,0.3);}
+      .ms-bot:hover{border-color:rgba(159,232,106,0.8);color:#d2ffa8;}
+      .ms-bot.rm{color:#ff8a8a;background:rgba(26,14,14,0.9);border-color:rgba(255,107,107,0.3);}
+      .ms-bot.rm:hover{border-color:rgba(255,107,107,0.8);}
+    `);
+    const row = document.createElement('div');
+    row.className = 'ms-bots';
+    row.innerHTML = `<span class="lb">BOTS</span>`
+      + ['easy', 'normal', 'hard', 'master'].map((d) => `<div class="ms-bot" data-d="${d}">+ ${d.toUpperCase()}</div>`).join('')
+      + `<div class="ms-bot rm" data-rm>− REMOVE</div>`;
+    row.querySelectorAll('[data-d]').forEach((el) => el.addEventListener('click', () => { this._sfx('ui_select'); onAdd?.(el.dataset.d); }));
+    row.querySelector('[data-rm]').addEventListener('click', () => { this._sfx('ui_select'); onRemove?.(); });
+    this.modesEl.after(row);
+    this._botsEl = row;
+  }
+
   // ---- game-mode chips (shared lobby mode; any crew member can switch) ----
   setModes(modes, currentId, onPick) {
     if (!this.modesEl) return;

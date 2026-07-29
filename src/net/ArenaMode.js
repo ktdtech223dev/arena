@@ -164,6 +164,7 @@ export class ArenaMode {
       if (w.mapId && this.mapSelect) this.mapSelect.setCurrent(w.mapId);
       // game-mode chips in the B panel + initial mode state
       if (Array.isArray(w.modes)) this.mapSelect?.setModes?.(w.modes, w.mode?.id, (id) => this.conn.sendSetMode(id));
+      this.mapSelect?.setBots?.((d) => this.conn.sendAddBot(d), () => this.conn.sendRemoveBot());
       if (w.mode) { this.modeSnap = w.mode; this.modeHUD.update(w.mode); this.modeView.sync(w.mode, conn.id); }
       // crew radio: adopt the lobby's shared station
       if (w.radio) {

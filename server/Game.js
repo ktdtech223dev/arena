@@ -13,6 +13,7 @@ import { MapState } from './MapState.js';
 import { Accolades } from './Accolades.js';
 import { Pickups } from './Pickups.js';
 import { ModeState, MODES } from './Modes.js';
+import { BotManager } from './Bots.js';
 import { CUSTOM_RAW } from '../shared/maps.js';
 
 const TICK_MS = 1000 / TICK_RATE;
@@ -27,6 +28,7 @@ export class Game {
     this.pickups.load(this.map.map); // gameplay-object pickups + jump pads for this map
     this.accolades = new Accolades(io, lobby, ACCOLADES); // server-authoritative kill medals
     this.mode = new ModeState(this); // game-mode engine (ffa/tdm/ctf/koth/oddball)
+    this.bots = new BotManager(this); // server-side bots (custom-match filler)
     this.tickCount = 0;
     this._timer = null; this._acc = 0; this._last = 0;
   }
@@ -213,6 +215,7 @@ export class Game {
 
     // 1) live world (doors/destructibles/platforms) → 2) movement
     const world = this.map.liveWorld(t);
+    this.bots.step(now, world); // bots think + queue inputs through the same sim
     for (const p of players.values()) p.processInputs(world);
 
     // 3) history for lag-comp rewind
