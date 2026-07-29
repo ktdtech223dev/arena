@@ -9,6 +9,7 @@ import { SettingsPanel } from './SettingsPanel.js';
 import { mapList } from '../../shared/maps.js';
 import { WEAPONS } from '../weapons/weapons-data.js';
 import { getProfile, getStats, CAMO_TIERS, camoForKills } from '../core/Profile.js';
+import { STATIONS, RadioPlayer } from './Radio.js';
 
 const CSS = `
 .mm-root{position:absolute;inset:0;z-index:60;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
@@ -160,6 +161,7 @@ export class MainMenu {
       <div class="mm-bot">
         <div class="bi" data-bot="editor">MAP EDITOR</div>
         <div class="bi" data-bot="settings">SETTINGS</div>
+        <div class="bi" data-bot="radio">📻 RADIO: OFF</div>
       </div>
 
       <div class="mp-hub">
@@ -199,6 +201,16 @@ export class MainMenu {
     });
     root.querySelector('[data-bot="editor"]').addEventListener('click', () => go('editor'));
     root.querySelector('[data-bot="settings"]').addEventListener('click', () => this.settingsPanel.open());
+    // menu radio: local playback, click to cycle stations (in-game it's the shared voted station)
+    const radioBtn = root.querySelector('[data-bot="radio"]');
+    let radioIdx = STATIONS.length - 1; // start at OFF
+    radioBtn.addEventListener('click', () => {
+      radioIdx = (radioIdx + 1) % STATIONS.length;
+      const st = STATIONS[radioIdx];
+      this._radio = this._radio || new RadioPlayer(0.35);
+      this._radio.setStation(st);
+      radioBtn.textContent = `📻 RADIO: ${st.url ? st.name : 'OFF'}`;
+    });
     root.querySelectorAll('[data-mp]').forEach((el) => el.addEventListener('click', (ev) => {
       ev.stopPropagation();
       const k = el.getAttribute('data-mp');

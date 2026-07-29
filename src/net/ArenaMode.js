@@ -26,6 +26,7 @@ import { POWERUPS, CUSTOM_START_WEAPONS } from '../../shared/custommap.js';
 import { getProfile } from '../core/Profile.js';
 import { ModeHUD } from '../ui/ModeHUD.js';
 import { ModeView } from './ModeView.js';
+import { RadioPlayer, RadioPanel } from '../ui/Radio.js';
 
 const FOOTSTEPS = ['footstep_01', 'footstep_02', 'footstep_03', 'footstep_04'];
 
@@ -97,6 +98,9 @@ export class ArenaMode {
     this.modeHUD = new ModeHUD(ctx, () => this.conn.id, (id) => this._info(id).name);
     this.modeView = new ModeView(ctx);
     this.modeSnap = null;
+    // crew radio (J): shared station, vote to change; live streams sync themselves
+    this.radio = new RadioPlayer(0.32);
+    this.radioPanel = new RadioPanel(ctx, (id) => this.conn.sendVote('radio', id));
     ctx.input.onKeyDown('KeyB', () => {
       if (this.mapSelect.isOpen) { this.mapSelect.close(); ctx.input.popUI('mapselect'); }
       else { ctx.input.pushUI('mapselect'); this.mapSelect.open(); }
@@ -161,6 +165,12 @@ export class ArenaMode {
       // game-mode chips in the B panel + initial mode state
       if (Array.isArray(w.modes)) this.mapSelect?.setModes?.(w.modes, w.mode?.id, (id) => this.conn.sendSetMode(id));
       if (w.mode) { this.modeSnap = w.mode; this.modeHUD.update(w.mode); this.modeView.sync(w.mode, conn.id); }
+      // crew radio: adopt the lobby's shared station
+      if (w.radio) {
+        this.radioPanel.setStations(w.radio.stations, w.radio.current);
+        const st = (w.radio.stations || []).find((s) => s.id === w.radio.current);
+        if (st) this.radio.setStation(st);
+      }
       this.interp.onWelcome(w);
       if (w.spawn) { this.pred.setSpawn(w.spawn); this.ctx.player.camera.yaw = w.spawn.yaw; }
       this.myCrew = w.crew;
@@ -211,6 +221,22 @@ export class ArenaMode {
     });
     conn.on('mode_event', (e) => {
       if (e?.kind === 'capture') this._flashPickup(`${e.team === 0 ? 'RED' : 'BLUE'} FLAG CAPTURED`);
+    });
+
+    // crew radio: the vote passed → everyone tunes together
+    conn.on('radio_set', (e) => {
+      if (!e) return;
+      const st = this.radioPanel.stations.find((s) => s.id === e.id);
+      this.radioPanel.setCurrent(e.id);
+      this.radio.setStation(st || null);
+      this._flashPickup(st && st.url ? `📻 ${st.name}` : '📻 RADIO OFF');
+    });
+    // vote progress (radio/map/mode): show who wants what + the count
+    conn.on('vote_update', (v) => {
+      if (!v) return;
+      if (v.kind === 'radio') this.radioPanel.voteUpdate(v.id, v.votes, v.needed);
+      const label = v.kind === 'radio' ? (this.radioPanel.stations.find((s) => s.id === v.id)?.name || v.id) : v.id.toUpperCase();
+      this._flashPickup(`${v.by || 'CREW'} VOTED ${v.kind.toUpperCase()}: ${label} (${v.votes}/${v.needed})`);
     });
 
     // Someone ELSE fired a hitscan/pellet shot — draw its tracer + a muzzle flash so

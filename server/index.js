@@ -161,6 +161,39 @@ const lobby = new Lobby();
 const game = new Game(io, lobby);
 game.stats = stats; // kill/death/accolade/win bumps happen inside the sim
 
+// ---- SYNCED RADIO + CREW VOTING --------------------------------------------
+// The radio is shared lobby state: everyone tunes the same live internet stream
+// (live streams are inherently in sync). Changing the station — or the MAP when
+// more than one player is online — requires a VOTE: strictly more than 50% of
+// active players (floor(n/2)+1). Solo player → instant.
+// Streams: SomaFM (listener-supported, free for non-commercial use — credit them).
+const RADIO_STATIONS = [
+  { id: 'groove',  name: 'GROOVE SALAD',  url: 'https://ice1.somafm.com/groovesalad-128-mp3' },
+  { id: 'defcon',  name: 'DEF CON RADIO', url: 'https://ice1.somafm.com/defcon-128-mp3' },
+  { id: 'beat',    name: 'BEAT BLENDER',  url: 'https://ice1.somafm.com/beatblender-128-mp3' },
+  { id: 'space',   name: 'SPACE STATION', url: 'https://ice1.somafm.com/spacestation-128-mp3' },
+  { id: 'metal',   name: 'METAL DETECTOR', url: 'https://ice1.somafm.com/metal-128-mp3' },
+  { id: 'off',     name: 'RADIO OFF',     url: null },
+];
+let radioStation = 'off';
+const votes = new Map(); // 'kind:id' -> Set(playerSocketIds)
+
+function castVote(kind, id, player) {
+  const key = `${kind}:${id}`;
+  let set = votes.get(key);
+  if (!set) votes.set(key, (set = new Set()));
+  if (set.has(player.id)) return; // one vote per player per option
+  set.add(player.id);
+  const needed = Math.floor(lobby.count / 2) + 1; // strictly >50%
+  io.emit('vote_update', { kind, id, votes: set.size, needed, by: player.name || player.crew?.name });
+  if (set.size >= needed) {
+    for (const k of [...votes.keys()]) if (k.startsWith(`${kind}:`)) votes.delete(k); // vote resolved
+    if (kind === 'radio') { radioStation = id; io.emit('radio_set', { id }); }
+    else if (kind === 'map') game.setMap(id);
+    else if (kind === 'mode') game.setMode(id);
+  }
+}
+
 io.on('connection', (socket) => {
   let player = null;
 
@@ -187,6 +220,7 @@ io.on('connection', (socket) => {
       mapCustom: CUSTOM_RAW.get(lobby.settings.currentMap) || null,
       mode: game.mode.serialize(Date.now()),
       modes: Object.entries(MODES).map(([id, m]) => ({ id, name: m.name, teams: m.teams })),
+      radio: { stations: RADIO_STATIONS, current: radioStation },
       spawn: { pos: player.spawn.pos, yaw: player.spawn.yaw },
       players: lobby.publicList(),
     });
@@ -224,8 +258,24 @@ io.on('connection', (socket) => {
     game.throwGrenade(player, t.origin, t.dir);
   });
 
-  socket.on('setMap', (m) => { if (player && m && m.id && MAPS[m.id]) game.setMap(m.id); });
-  socket.on('setMode', (m) => { if (player && m && m.id) game.setMode(m.id); });
+  // map/mode switches VOTE when 2+ players are online (>50% to pass); solo = instant.
+  socket.on('setMap', (m) => {
+    if (!player || !m || !m.id || !MAPS[m.id]) return;
+    if (lobby.count <= 1) game.setMap(m.id);
+    else castVote('map', m.id, player);
+  });
+  socket.on('setMode', (m) => {
+    if (!player || !m || !m.id || !MODES[m.id]) return;
+    if (lobby.count <= 1) game.setMode(m.id);
+    else castVote('mode', m.id, player);
+  });
+  // radio: ALWAYS a vote (even solo — floor(1/2)+1 = 1 → instant for one player).
+  socket.on('vote', (v) => {
+    if (!player || !v || typeof v.id !== 'string') return;
+    if (v.kind === 'radio' && RADIO_STATIONS.some((s) => s.id === v.id)) castVote('radio', v.id, player);
+    else if (v.kind === 'map' && MAPS[v.id]) castVote('map', v.id, player);
+    else if (v.kind === 'mode' && MODES[v.id]) castVote('mode', v.id, player);
+  });
 
   socket.on('swap', (m) => { if (player && m && m.weaponId) player.weaponId = m.weaponId; });
   socket.on('reload', () => { /* ammo is client-tracked for now; server trusts fire cadence */ });
@@ -241,6 +291,7 @@ io.on('connection', (socket) => {
     const ms = Date.now() - (player.joinedAt || Date.now());
     stats.bump(player.profileId, (s) => { s.playMs = (s.playMs || 0) + ms; });
     setTimeout(() => stats.flush(), 250);
+    for (const set of votes.values()) set.delete(socket.id); // withdraw their votes
     lobby.removePlayer(socket.id);
     game.accolades?.removePlayer(socket.id);
     io.emit('player_leave', { id: socket.id });
