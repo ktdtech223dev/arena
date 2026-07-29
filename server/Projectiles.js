@@ -124,28 +124,35 @@ export class ProjectileSim {
     }
   }
 
+  // BEHAVIOR kind: cfg.kind aliases variants onto a base behavior (mini→rocket,
+  // bolt/disc→sawblade) while p.kind stays the wire kind the client renders.
+  _behavior(p) { return p.cfg.kind || p.kind; }
+
   _playerHit(p, pl, players, api) {
-    if (p.kind === 'sawblade') {
+    const bk = this._behavior(p);
+    if (bk === 'sawblade') {
       api.damage(p.ownerId, pl.id, p.cfg.damage, 'body', p.weapon);
+      if (p.cfg.pierce === false) { p.dead = true; return; } // bolt: dies on the hit
       p.hitSet.add(pl.id); // pierce: keep flying, don't re-hit this leg
-    } else if (p.kind === 'rocket') {
+    } else if (bk === 'rocket') {
       this._explode(p, players, api);
-    } else if (p.kind === 'seeker') {
+    } else if (bk === 'seeker') {
       this._explode(p, players, api);
     }
   }
 
   _wallHit(p, w, players, api) {
-    if (p.kind === 'sawblade') {
+    const bk = this._behavior(p);
+    if (bk === 'sawblade') {
       if (p.bounces > 0) {
         this._reflect(p, w, 1.0);
         p.bounces--;
         p.hitSet.clear();               // may re-cross players on the new leg
         api.boom('bounce', { ...p.pos }, 0.5);
       } else { p.dead = true; }
-    } else if (p.kind === 'rocket' || p.kind === 'seeker') {
+    } else if (bk === 'rocket' || bk === 'seeker') {
       this._explode(p, players, api);
-    } else if (p.kind === 'grenade') {
+    } else if (bk === 'grenade') {
       this._reflect(p, w, p.cfg.bounce, p.cfg.friction);
       api.boom('bounce', { ...p.pos }, 0.3);
     }
@@ -201,14 +208,15 @@ export class ProjectileSim {
     // centralized splash — hits players AND map entities (barrels/destructibles)
     if (api.splash) api.splash({ ...p.pos }, radius, cfg.splashDamage || cfg.damage || 50, cfg.splashMinFrac ?? 0.25, p.ownerId, p.weapon);
     else this._splash(p.pos, radius, cfg.splashDamage || cfg.damage || 50, cfg.splashMinFrac ?? 0.25, p.ownerId, p.weapon, players, api);
-    if (p.kind === 'rocket' && cfg.seekers) this._spawnSeekers(p, players);
+    if (this._behavior(p) === 'rocket' && cfg.seekers) this._spawnSeekers(p, players);
     p.dead = true;
   }
 
   _explodeGrenade(p, players, api) { this._explode(p, players, api); }
 
   _expire(p, players, api) {
-    if (p.kind === 'rocket' || p.kind === 'seeker' || p.kind === 'grenade') this._explode(p, players, api);
+    const bk = this._behavior(p);
+    if (bk === 'rocket' || bk === 'seeker' || bk === 'grenade') this._explode(p, players, api);
     else p.dead = true; // sawblade just vanishes
   }
 

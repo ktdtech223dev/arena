@@ -904,6 +904,9 @@ const BUILDERS = {
   burst: buildAr, // shares the AR chassis for now (distinct stats/fire/sound)
   arclance: buildExotic, // dual-mode energy weapon — shares the exotic chassis for now
   breacher: buildShotgun, // dual-mode shotgun — shares the shotgun chassis
+  hornet: buildExotic,   // dual-mode micro-launcher — launcher chassis
+  carom: buildSawblade,  // dual-mode trick launcher — disc-launcher chassis
+  kinetic: buildSmg,     // dual-mode force repeater — SMG chassis
   knife: buildKnife,
   bat: buildBat,
 };

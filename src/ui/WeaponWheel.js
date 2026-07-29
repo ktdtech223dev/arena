@@ -53,6 +53,7 @@ function drawGlyph(g, id, x, y, color) {
       g.restore();
       break;
     case 'smg':
+    case 'kinetic':
       g.fillRect(-20, -3, 6, 4);      // stock
       g.fillRect(-14, -6, 26, 9);     // body
       g.fillRect(12, -4, 8, 3);       // barrel
@@ -88,6 +89,7 @@ function drawGlyph(g, id, x, y, color) {
       g.fillRect(-2, 1, 5, 8);        // mag
       break;
     case 'arclance':
+    case 'hornet':
     case 'exotic':
       g.fillRect(-20, -6, 34, 10);    // launcher tube
       g.fillRect(14, -7, 6, 12);      // muzzle mouth
@@ -95,6 +97,7 @@ function drawGlyph(g, id, x, y, color) {
       g.fillRect(-8, 4, 6, 8);        // grip
       g.fillRect(-14, -11, 12, 4);    // top sight rail
       break;
+    case 'carom':
     case 'sawblade': {
       g.fillRect(-22, -3, 22, 6);     // launcher body
       g.fillRect(-12, 3, 6, 8);       // grip

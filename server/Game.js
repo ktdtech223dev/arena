@@ -67,12 +67,50 @@ export class Game {
     this.io.to(p.id).emit('pickup', { id: pk.id, kind: pk.kind, weapon, powerup: pk.powerup });
   }
 
-  spawnProjectile(player, projKind, origin, dir) {
+  // KINETIC alt — concussion blast: shove every nearby player away from the muzzle
+  // (+ chip damage), and rocket-jump the SHOOTER opposite their aim. Server applies
+  // the authoritative impulses; the shooter also predicts their own locally.
+  _concussion(shooter, fire, blast, players, now) {
+    const o = fire.origin, d = fire.dir || { x: 0, y: 0, z: 0 };
+    for (const pl of players.values()) {
+      if (!pl.alive || pl.id === shooter.id) continue;
+      const dx = pl.move.px - o.x, dy = (pl.move.py + 0.9) - o.y, dz = pl.move.pz - o.z;
+      const dist = Math.hypot(dx, dy, dz);
+      if (dist > blast.radius) continue;
+      const f = 1 - (dist / blast.radius) * 0.6; // strong at center, 40% falloff at edge
+      const il = dist || 1;
+      pl.move.vx += (dx / il) * blast.push * f;
+      pl.move.vy += Math.max((dy / il) * blast.push * 0.5, blast.up) * f;
+      pl.move.vz += (dz / il) * blast.push * f;
+      pl.move.grounded = false; pl.move.state = 'AIRBORNE';
+      if (blast.damage) this.applyDamage(shooter.id, pl.id, Math.round(blast.damage * f), 'body', fire.weaponId, now);
+    }
+    // self rocket-jump: impulse opposite the aim (aim at the ground → launch up/back)
+    shooter.move.vx -= d.x * blast.self;
+    shooter.move.vy += Math.max(-d.y * blast.self, 2.5);
+    shooter.move.vz -= d.z * blast.self;
+    shooter.move.grounded = false; shooter.move.state = 'AIRBORNE';
+    this.io.emit('boom', { kind: 'bounce', pos: { x: o.x + d.x, y: o.y + d.y, z: o.z + d.z }, radius: blast.radius * 0.5 });
+  }
+
+  spawnProjectile(player, projKind, origin, dir, combat) {
     if (!player.alive) return;
     // 'grenade' projectiles (e.g. the Arc Lance bomb-lob alt) arc + fuse — route
     // through spawnGrenade so they lob, not fly straight.
-    if (projKind === 'grenade') this.projectiles.spawnGrenade(player, origin, dir);
-    else this.projectiles.spawnFromWeapon(projKind, player, origin, dir);
+    if (projKind === 'grenade') { this.projectiles.spawnGrenade(player, origin, dir); return; }
+    // volley (e.g. the Hornet alt's fan of 3 homing seekers): fan across the aim's
+    // horizontal tangent; homing pulls them back onto targets immediately.
+    const n = combat?.volley || 1;
+    if (n <= 1) { this.projectiles.spawnFromWeapon(projKind, player, origin, dir); return; }
+    const L = Math.hypot(dir.x, dir.y, dir.z) || 1;
+    const d = { x: dir.x / L, y: dir.y / L, z: dir.z / L };
+    let rx = d.z, rz = -d.x; // horizontal right vector
+    const rl = Math.hypot(rx, rz) || 1; rx /= rl; rz /= rl;
+    const spread = combat.volleySpread ?? 0.2;
+    for (let i = 0; i < n; i++) {
+      const o = (i - (n - 1) / 2) * spread;
+      this.projectiles.spawnFromWeapon(projKind, player, origin, { x: d.x + rx * o, y: d.y + 0.05 * Math.abs(o), z: d.z + rz * o });
+    }
   }
   throwGrenade(player, origin, dir) { if (player.alive) this.projectiles.spawnGrenade(player, origin, dir); }
 
@@ -160,6 +198,10 @@ export class Game {
       const shots = shooter.pendingShots; shooter.pendingShots = [];
       for (const fire of shots) {
         if (!shooter.alive) break;
+        const combat = WEAPON_COMBAT[fire.weaponId];
+        // CONCUSSION BLAST (kinetic alt): radial shove near the muzzle + a self-
+        // impulse opposite the aim (rocket-jump). No ray — pure force + chip damage.
+        if (combat?.blast) { this._concussion(shooter, fire, combat.blast, players, now); continue; }
         let hitDist = 0; // 0 → client tracer runs to max range (a miss)
         if (WEAPON_COMBAT[fire.weaponId]?.pellets) {
           const map = resolvePellets(shooter, fire, players, now, shooter.clockOffset || 0);
@@ -173,6 +215,14 @@ export class Game {
           } else if (res) {
             this.applyDamage(shooter.id, res.victimId, res.dmg, res.part, fire.weaponId, now);
             hitDist = res.dist;
+            // kinetic-style shove: push the victim along the shot direction per hit.
+            const kb = combat?.knockback;
+            const victim = kb && players.get(res.victimId);
+            if (victim && victim.alive && fire.dir) {
+              victim.move.vx += fire.dir.x * kb;
+              victim.move.vy += Math.max(fire.dir.y * kb * 0.5, 0.4);
+              victim.move.vz += fire.dir.z * kb;
+            }
           }
         }
         // Broadcast a lightweight shot-fx so EVERYONE ELSE sees the tracer + muzzle

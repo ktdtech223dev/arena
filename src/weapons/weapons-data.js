@@ -527,6 +527,104 @@ export const WEAPONS = [
   },
 
   // -------------------------------------------------------------------------
+  // HORNET (slot 15 → wheel/scroll) — DUAL-MODE micro-launcher. LMB = a small fast
+  // DIRECT rocket (dodgeable, modest splash). RMB = ALT: a fan of 3 HOMING seeker
+  // micro-missiles ('hornet_alt' → server volley; they steer onto the nearest enemy).
+  // -------------------------------------------------------------------------
+  {
+    id: 'hornet',
+    name: 'HORNET',
+    slot: 15,
+    type: 'rocket',
+    dualMode: true,
+    damage: 40,
+    auto: false,
+    rpm: 95,
+    mag: 4,
+    reserve: 20,
+    falloff: { start: 0, end: 0, minMult: 1 },
+    spread: { base: 0.15, move: 0.6, air: 0.9, ads: 0.15, bloomPerShot: 0, bloomMax: 0, recover: 8, adsMove: 0.4 },
+    recoil: { kickPitch: 3.2, kickYaw: 0.5, recover: 8, adsMult: 1 },
+    reload: { phases: [{ name: 'magout', t: 0.55 }, { name: 'magin', t: 0.7 }] },
+    equipT: 0.4, holsterT: 0.3, adsT: 0.2, adsFovScale: 1, looseAds: true,
+    sounds: { fire: 'exotic_fire' },
+    tracer: { color: 0xffb060, width: 0.04 },
+    shell: { kind: 'rifle' },
+    feel: { hitstopMs: 60, hitstopKillMs: 120, shake: 0.5, flash: 0.8 },
+    weight: 3.0,
+    // SP-range local sim mirror of the server 'mini' projectile
+    projectile: { speed: 78, gravity: 0, color: 0xffb060 },
+    explosion: { radius: 3.2, damage: 60, seekers: 0, seekRadius: 0, seekerDamage: 0, seekerSpeed: 0, seekerTurn: 0, seekerLife: 0, seekerRadius: 0 },
+    alt: { combatId: 'hornet_alt', type: 'projectile', rpm: 30, ammoCost: 2, spread: 0.3, sound: 'exotic_fire' },
+  },
+
+  // -------------------------------------------------------------------------
+  // CAROM (slot 16 → wheel/scroll) — DUAL-MODE trick launcher. LMB = a fast
+  // RICOCHET BOLT that banks off ONE wall and dies on the player it hits — trick-
+  // shots around cover. RMB = ALT: a heavy straight PIERCING disc ('carom_alt')
+  // that carves through everyone in line. Go around cover, or through it.
+  // -------------------------------------------------------------------------
+  {
+    id: 'carom',
+    name: 'CAROM',
+    slot: 16,
+    type: 'sawblade',
+    dualMode: true,
+    damage: 38,
+    auto: true,
+    rpm: 200,
+    mag: 12,
+    reserve: 48,
+    falloff: { start: 0, end: 0, minMult: 1 },
+    spread: { base: 0.35, move: 0.8, air: 1.1, ads: 0.35, bloomPerShot: 0.08, bloomMax: 1.0, recover: 8, adsMove: 0.35 },
+    recoil: { kickPitch: 1.0, kickYaw: 0.5, recover: 12, adsMult: 1 },
+    reload: { phases: [{ name: 'magout', t: 0.5 }, { name: 'magin', t: 0.6 }] },
+    equipT: 0.32, holsterT: 0.26, adsT: 0.18, adsFovScale: 1, looseAds: true,
+    sounds: { fire: 'sawblade_fire' },
+    tracer: { color: 0xd8ffe8, width: 0.03 },
+    shell: { kind: 'rifle' },
+    feel: { hitstopMs: 35, hitstopKillMs: 85, shake: 0.25, flash: 0.55 },
+    weight: 2.4,
+    // SP-range local sim mirror of the server 'bolt'
+    projectile: { speed: 80, gravity: 0, color: 0xd8ffe8 },
+    ricochet: { maxBounces: 1, speed: 80, damage: 38, life: 3, radius: 0.14 },
+    alt: { combatId: 'carom_alt', type: 'projectile', rpm: 50, ammoCost: 3, spread: 0.15, sound: 'sawblade_fire' },
+  },
+
+  // -------------------------------------------------------------------------
+  // KINETIC (slot 17 → wheel/scroll) — DUAL-MODE force weapon. LMB = full-auto
+  // repeater whose hits SHOVE the target (server knockback per hit — suppression
+  // that physically moves people). RMB = ALT: a CONCUSSION BLAST ('kinetic_alt')
+  // that hurls nearby enemies away AND rocket-jumps YOU opposite your aim — aim
+  // at the ground and blast to launch. Pure force.
+  // -------------------------------------------------------------------------
+  {
+    id: 'kinetic',
+    name: 'KINETIC',
+    slot: 17,
+    type: 'hitscan',
+    dualMode: true,
+    damage: 14,
+    auto: true,
+    rpm: 540,
+    mag: 40,
+    reserve: 160,
+    falloff: { start: 18, end: 50, minMult: 0.4 },
+    spread: { base: 0.6, move: 1.0, air: 1.6, ads: 0.6, bloomPerShot: 0.1, bloomMax: 1.8, recover: 8, adsMove: 0.5 },
+    recoil: { kickPitch: 0.9, kickYaw: 0.6, recover: 13, adsMult: 1 },
+    reload: { phases: [{ name: 'magout', t: 0.5 }, { name: 'magin', t: 0.6 }] },
+    equipT: 0.3, holsterT: 0.24, adsT: 0.18, adsFovScale: 1,
+    sounds: { fire: 'smg_fire' },
+    tracer: { color: 0x9fd0ff, width: 0.04 },
+    shell: { kind: 'pistol' },
+    feel: { hitstopMs: 20, hitstopKillMs: 60, shake: 0.2, flash: 0.6 },
+    weight: 2.2,
+    // ALT: concussion blast — server applies the radial shove; the client also
+    // predicts the SELF impulse locally (selfImpulse m/s opposite the aim).
+    alt: { combatId: 'kinetic_alt', type: 'blast', rpm: 24, ammoCost: 8, sound: 'shotgun_fire', selfImpulse: 12, selfUp: 2.5 },
+  },
+
+  // -------------------------------------------------------------------------
   // KNIFE (slot 10) — dedicated MELEE weapon (V / weapon-wheel). §1C. NOT a
   // quick-melee: you switch to it and fight with it. LMB = fast light swing
   // (short reach), RMB = heavy LUNGE (longer reach, big damage). No ADS / ammo /

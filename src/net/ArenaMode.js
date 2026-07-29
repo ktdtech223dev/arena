@@ -292,6 +292,19 @@ export class ArenaMode {
       // remotes still render the right weapon.
       const baseId = e.def?.id || this.ctx.weapons?.current?.def?.id || 'ar';
       const altId = (e.alt && e.def?.alt?.combatId) ? e.def.alt.combatId : null;
+      // KINETIC alt: predict our own concussion self-impulse (rocket-jump) locally —
+      // the server applies the authoritative copy when the packet lands and
+      // reconciliation folds the tiny timing difference into the error offset.
+      if (e.alt && e.def?.alt?.selfImpulse) {
+        const s = this.pred?.pred;
+        if (s) {
+          const si = e.def.alt.selfImpulse;
+          s.vx -= e.dir.x * si;
+          s.vy += Math.max(-e.dir.y * si, e.def.alt.selfUp ?? 2.5);
+          s.vz -= e.dir.z * si;
+          s.grounded = false; s.state = 'AIRBORNE';
+        }
+      }
       this.conn.sendFire({
         seq: this.pred.seq,
         // lag comp: we render remotes INTERP_DELAY_MS in the past, so the shot

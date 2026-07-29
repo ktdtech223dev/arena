@@ -188,8 +188,8 @@ io.on('connection', (socket) => {
     if (fire.weaponId) player.weaponId = fire.viewId || fire.weaponId;
     const projKind = WEAPON_COMBAT[fire.weaponId]?.projectile;
     if (projKind) {
-      // server-authoritative networked projectile (sawblade / rocket)
-      if (fire.origin && fire.dir) game.spawnProjectile(player, projKind, fire.origin, fire.dir);
+      // server-authoritative networked projectile (sawblade / rocket / mini / bolt / disc / seeker volley)
+      if (fire.origin && fire.dir) game.spawnProjectile(player, projKind, fire.origin, fire.dir, WEAPON_COMBAT[fire.weaponId]);
     } else if (player.pendingShots.length < 16) {
       player.pendingShots.push(fire); // hitscan, lag-comp resolved on the tick
     }

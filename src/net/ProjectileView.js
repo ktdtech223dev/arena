@@ -91,6 +91,10 @@ class ProjectileVisual {
     if (kind === 'seeker') return buildSeeker();
     if (kind === 'sawblade') return buildSawblade();
     if (kind === 'grenade') return buildGrenade();
+    // dual-mode weapon wire kinds → nearest existing visual
+    if (kind === 'mini') return buildRocket();     // Hornet direct mini-rocket
+    if (kind === 'bolt') return buildSeeker();     // Carom ricochet bolt (small dart)
+    if (kind === 'disc') return buildSawblade();   // Carom piercing disc
     return buildRocket();
   }
 
@@ -124,8 +128,8 @@ class ProjectileVisual {
   }
 }
 
-const LIGHT_COLOR = { rocket: 0xff9a4a, seeker: 0xffd0a0, sawblade: 0x9affd0, grenade: 0xffb347 };
-const LIGHT_MAX = { rocket: 4, seeker: 2.2, sawblade: 1.6, grenade: 1.4 };
+const LIGHT_COLOR = { rocket: 0xff9a4a, seeker: 0xffd0a0, sawblade: 0x9affd0, grenade: 0xffb347, mini: 0xffb060, bolt: 0xd8ffe8, disc: 0x9affd0 };
+const LIGHT_MAX = { rocket: 4, seeker: 2.2, sawblade: 1.6, grenade: 1.4, mini: 3, bolt: 1.2, disc: 1.8 };
 
 // Track base opacities so the fade envelope multiplies rather than overwrites.
 function tagOpacity(map, mat) { map.set(mat, mat.opacity ?? 1); return mat; }
@@ -263,7 +267,7 @@ export class ProjectileView {
     // steady-state spawns are pure pool reuse (no runtime scene mutation).
     for (let i = 0; i < VISUAL_POOL; i++) {
       const vis = new ProjectileVisual(this.ctx.scene);
-      for (const k of ['rocket', 'seeker', 'sawblade', 'grenade']) vis.useKind(k);
+      for (const k of ['rocket', 'seeker', 'sawblade', 'grenade', 'mini', 'bolt', 'disc']) vis.useKind(k);
       vis.group.visible = false;
       this.pool.push(vis);
     }

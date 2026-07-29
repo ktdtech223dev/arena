@@ -104,6 +104,17 @@ export const WEAPON_COMBAT = {
   // BREACHER (dual-mode): primary = 8-pellet shotgun; alt 'breacher_alt' = precise slug.
   breacher:      { damage: 11, headMult: 1.4, falloff: { start: 8,  end: 22,  minMult: 0.25 }, pellets: 8, spreadDeg: 3.0 },
   breacher_alt:  { damage: 60, headMult: 1.8, falloff: { start: 40, end: 130, minMult: 0.6 } },
+  // HORNET (dual-mode): primary = small direct rocket; alt = a fan of 3 homing seekers.
+  hornet:        { damage: 0, headMult: 1, falloff: null, projectile: 'mini' },
+  hornet_alt:    { damage: 0, headMult: 1, falloff: null, projectile: 'seeker', volley: 3, volleySpread: 0.22 },
+  // CAROM (dual-mode): primary = ricochet bolt (banks off one wall); alt = piercing disc.
+  carom:         { damage: 0, headMult: 1, falloff: null, projectile: 'bolt' },
+  carom_alt:     { damage: 0, headMult: 1, falloff: null, projectile: 'disc' },
+  // KINETIC (dual-mode): primary = auto repeater that SHOVES on hit (knockback m/s);
+  // alt 'kinetic_alt' = a CONCUSSION BLAST — radial shove on everyone near the muzzle
+  // + a self-impulse opposite the aim (rocket-jump mobility). Modest damage.
+  kinetic:       { damage: 14, headMult: 1.5, falloff: { start: 18, end: 50, minMult: 0.4 }, knockback: 2.4 },
+  kinetic_alt:   { damage: 0,  headMult: 1,   falloff: null, blast: { radius: 7, push: 13, up: 4, self: 12, damage: 15 } },
   // Projectile weapons: `projectile` names a PROJECTILES entry — the server
   // spawns a networked projectile instead of resolving hitscan. damage/headMult
   // here are unused for these (the projectile carries its own damage).
@@ -171,6 +182,26 @@ export const PROJECTILES = {
     fuse: 1.6, bounce: 0.42, friction: 0.75,
     splashDamage: 130, splashRadius: 5.2, splashMinFrac: 0.2,
     throwUp: 4.5, // extra +Y on throw so it arcs
+  },
+
+  // ---- dual-mode weapon projectiles. `kind` aliases the BEHAVIOR branch in
+  //      Projectiles.js (rocket-like explode / sawblade-like fly+bounce); the
+  //      registry KEY is the wire kind the client renders. ----
+  // HORNET primary: a small fast direct rocket — weaker splash, no seeker spawn.
+  mini: {
+    kind: 'rocket', speed: 78, gravity: 0, radius: 0.3, life: 4,
+    directDamage: 40, splashDamage: 60, splashRadius: 3.2, splashMinFrac: 0.3,
+    seekers: 0,
+  },
+  // CAROM primary: a ricochet bolt — banks off ONE wall, dies on a player hit.
+  bolt: {
+    kind: 'sawblade', speed: 80, gravity: 0, radius: 0.14, life: 3,
+    damage: 38, maxBounces: 1, pierce: false,
+  },
+  // CAROM alt: a heavy straight PIERCING disc — carves through everyone in line.
+  disc: {
+    kind: 'sawblade', speed: 60, gravity: 0, radius: 0.3, life: 2.5,
+    damage: 70, maxBounces: 0, pierce: true,
   },
 };
 
