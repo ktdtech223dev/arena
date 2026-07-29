@@ -44,7 +44,11 @@ export class EditorMode {
     this.canvas = ctx.canvas;
 
     // ---- data model (source of truth) --------------------------------------
-    this.author = localStorage.getItem(AUTHOR_KEY) || 'anon';
+    // author = the N GAMES profile name (falls back to the legacy editor key) so
+    // "who made which map" tracks the profile shown in the multiplayer hub.
+    let profName = null;
+    try { profName = JSON.parse(localStorage.getItem('ngames.profile.v1'))?.name; } catch { /* fresh */ }
+    this.author = profName || localStorage.getItem(AUTHOR_KEY) || 'anon';
     this.map = newCustomMap('Untitled', this.author, Date.now());
     this._ensureUids();
 

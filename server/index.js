@@ -11,6 +11,7 @@ import { MAPS, mapList, registerCustomMap, unregisterCustomMap, CUSTOM_RAW } fro
 import { validateCustomMap } from '../shared/custommap.js';
 import { Lobby } from './Lobby.js';
 import { Game } from './Game.js';
+import { StatsStore } from './Stats.js';
 
 const PORT = Number(process.env.PORT) || 3000;
 const ROOT = process.cwd();
@@ -26,6 +27,7 @@ const DATA_DIR = resolveDataDir();
 const PROGRESS_DIR = path.join(DATA_DIR, 'progress');
 const MAPS_DIR = path.join(DATA_DIR, 'maps');
 mkdirSync(MAPS_DIR, { recursive: true }); // custom-map persistence (Railway volume)
+const stats = new StatsStore(path.join(DATA_DIR, 'stats')); // per-profile stats
 const safeId = (raw) => (String(raw || 'local').slice(0, 64).replace(/[^a-zA-Z0-9_-]/g, '') || 'local');
 
 const app = express();
@@ -54,6 +56,13 @@ app.post('/api/progress', async (req, res) => {
 // GET  /api/maps/:id  → the full authored custom-map JSON (for edit/host)
 // POST /api/maps      → validate + persist + register live + broadcast refresh
 // DEL  /api/maps/:id  → remove file + unregister (built-ins are never touched)
+// per-profile stats (kills/deaths/wins/streak/accolades/weapon kills) — read-only
+// API for the menu hub; the GAME writes stats server-side as matches happen.
+app.get('/api/stats', async (req, res) => {
+  try { res.json(await stats.get(safeId(req.query.player))); }
+  catch { res.json({}); }
+});
+
 app.get('/api/maps', async (_req, res) => {
   const out = [];
   try {
@@ -149,6 +158,7 @@ const io = new SocketServer(server, { cors: { origin: '*' }, pingInterval: 10000
 
 const lobby = new Lobby();
 const game = new Game(io, lobby);
+game.stats = stats; // kill/death/accolade/win bumps happen inside the sim
 
 io.on('connection', (socket) => {
   let player = null;
@@ -158,6 +168,7 @@ io.on('connection', (socket) => {
     if (lobby.isFull()) { socket.emit('lobby_full'); return; }
     player = lobby.addPlayer(socket.id, opts);
     player.joinedAt = Date.now();
+    player.profileId = safeId(opts.profileId || opts.name || socket.id); // stats identity
     player.recordHistory(Date.now());
     socket.emit('welcome', {
       id: player.id,
@@ -221,6 +232,10 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     if (!player) return;
+    // bank this session's playtime, then flush the profile's stats to disk
+    const ms = Date.now() - (player.joinedAt || Date.now());
+    stats.bump(player.profileId, (s) => { s.playMs = (s.playMs || 0) + ms; });
+    setTimeout(() => stats.flush(), 250);
     lobby.removePlayer(socket.id);
     game.accolades?.removePlayer(socket.id);
     io.emit('player_leave', { id: socket.id });

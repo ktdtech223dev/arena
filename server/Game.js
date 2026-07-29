@@ -140,11 +140,32 @@ export class Game {
       // ACCOLADES (server owns kills → server owns medals). Distance = attacker↔victim
       // at kill time (drives longshot/trickshot); attacker.move gives the movement fsm.
       const attacker = this.lobby.players.get(attackerId);
+      let awards = null;
       if (attacker && attackerId !== victimId) {
         const dist = Math.hypot(attacker.move.px - victim.move.px, attacker.move.py - victim.move.py, attacker.move.pz - victim.move.pz);
-        this.accolades.onKill(attacker, victim, { weapon, part, dist, now });
+        awards = this.accolades.onKill(attacker, victim, { weapon, part, dist, now });
       }
       this.accolades.onDeath(victimId, attackerId);
+      // ---- persistent per-profile STATS (menu hub: stats/accolades/camos) ----
+      if (this.stats) {
+        if (attacker && attackerId !== victimId) {
+          attacker.killStreak = (attacker.killStreak || 0) + 1;
+          const streak = attacker.killStreak;
+          const accIds = (awards || []).map((a) => a.id || a);
+          this.stats.bump(attacker.profileId, (s) => {
+            s.kills = (s.kills || 0) + 1;
+            s.weaponKills = s.weaponKills || {};
+            // camo credit goes to the BASE gun (an alt shot 'x_alt' counts for 'x')
+            const wid = String(weapon || 'ar').replace(/_alt$/, '');
+            s.weaponKills[wid] = (s.weaponKills[wid] || 0) + 1;
+            if (streak > (s.bestStreak || 0)) s.bestStreak = streak;
+            s.accolades = s.accolades || {};
+            for (const id of accIds) s.accolades[id] = (s.accolades[id] || 0) + 1;
+          });
+        }
+        victim.killStreak = 0;
+        this.stats.bump(victim.profileId, (s) => { s.deaths = (s.deaths || 0) + 1; });
+      }
     }
   }
 

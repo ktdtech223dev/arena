@@ -192,6 +192,13 @@ export class Viewmodel {
     this._offBase = { pos: [0, 0, 0], rot: [0, 0, 0] };
     this._offKick = 0;
 
+    // ---- camo progression: per-weapon kill counts → material tint tier ----
+    this._weaponKills = {};
+    import('../core/Profile.js').then(({ getStats }) => getStats()).then((s) => {
+      this._weaponKills = (s && s.weaponKills) || {};
+      if (this.current && this.currentId) this._applyCamo(this.current, this.currentId);
+    }).catch(() => { /* offline/dev — stock camo */ });
+
     // ---- events ----
     this._unsub = [];
     this._unsub.push(ctx.events.on('weapon:equip', (e) => this._onEquip(e)));
@@ -244,6 +251,26 @@ export class Viewmodel {
 
     // right hand grips per gun (meta.gripR). Support hand handled per frame.
     this._poseRightHand(model);
+
+    // camo tier tint (per-weapon kills; see core/Profile.js CAMO_TIERS)
+    this._applyCamo(model, id);
+  }
+
+  // Tint the model's lit materials toward the unlocked camo tier color. Cached
+  // models re-tint only when the tier changes; glow/basic materials untouched.
+  _applyCamo(model, id) {
+    import('../core/Profile.js').then(({ camoForKills }) => {
+      const tier = camoForKills(this._weaponKills[id] | 0);
+      if (!tier || model._camoName === tier.name) return;
+      model._camoName = tier.name;
+      if (!tier.tint) return; // STOCK — leave the authored look
+      model.group.traverse((o) => {
+        if (!o.isMesh || !o.material || !o.material.isMeshStandardMaterial) return;
+        if (!o.material.userData.baseColor) o.material.userData.baseColor = o.material.color.getHex();
+        o.material.color.setHex(o.material.userData.baseColor);
+        o.material.color.lerp(new THREE.Color(tier.tint), 0.4);
+      });
+    }).catch(() => { /* stock */ });
   }
 
   // ---- OFFHAND (dual-wield left gun) ---------------------------------------

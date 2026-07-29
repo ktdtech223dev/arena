@@ -23,6 +23,7 @@ import { INTERP_DELAY_MS, CREW, GRENADE, ACCOLADES } from '../../shared/constant
 import { getMap, mapList, DEFAULT_MAP, registerCustomMap } from '../../shared/maps.js';
 import { buildLiveWorld } from '../../shared/mapsim.js';
 import { POWERUPS, CUSTOM_START_WEAPONS } from '../../shared/custommap.js';
+import { getProfile } from '../core/Profile.js';
 
 const FOOTSTEPS = ['footstep_01', 'footstep_02', 'footstep_03', 'footstep_04'];
 
@@ -103,7 +104,11 @@ export class ArenaMode {
       else { this.accoladeFeed.hideSummary(); }
     });
 
-    this.conn.join({ preferredCrew: null });
+    // join with the local N GAMES profile so the server tracks persistent stats
+    // (kills/deaths/streaks/accolades/weapon-kill camo progress) under it.
+    let prof = null;
+    try { prof = getProfile(); } catch { /* profile optional */ }
+    this.conn.join({ preferredCrew: null, profileId: prof?.id, name: prof?.name });
     this._statTimer = 0;
   }
 
