@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import {
   UNIT_DEFS, UNIT_BY_ID, canUpgrade, TD_SHOP, TD_MAX_GUNS, WEAPON_TREES,
   PLAYER_UPGRADES, TD_ARMORY, TD_SELL_FRAC, tdDistToPath, ABILITIES, DELTA_KEYS,
+  tdPlaceCheck,
 } from '../../shared/tddata.js';
 import { drawGlyph } from '../ui/WeaponWheel.js';
 
@@ -103,6 +104,9 @@ const CSS = `
   font-size:10.5px;font-weight:800;letter-spacing:.12em;color:#ffd166;}
 .tdc-ults .ur.cd{border-color:rgba(255,255,255,0.15);color:#8fa6bb;}
 .tdc-ubtn{width:100%;text-align:center;font-size:12px;padding:9px 12px;margin:2px 0 8px;box-sizing:border-box;}
+.tdc-placing{background:rgba(159,232,106,0.14);border:1px solid rgba(159,232,106,0.5);border-radius:8px;padding:8px 11px;margin-bottom:9px;
+  font-size:11px;font-weight:800;letter-spacing:.1em;color:#9fe86a;}
+.tdc-placing span{display:block;margin-top:3px;font-size:9px;font-weight:600;letter-spacing:.08em;color:#aebccb;}
 `;
 
 export class TdUi {
@@ -143,13 +147,29 @@ export class TdUi {
 
     this._unsub = [];
     this._keys = [];
-    this._keys.push(ctx.input.onKeyDown('KeyB', () => { if (this._open()) this._close(); else this._show('build'); }));
+    // B toggles the build panel. With a tower selected, closing KEEPS the
+    // selection so you can walk the map and drop it on the crosshair.
+    this._keys.push(ctx.input.onKeyDown('KeyB', () => { if (this._open()) this._close(!!this.placing); else this._show('build'); }));
     this._keys.push(ctx.input.onKeyDown('KeyG', () => { if (this.state.phase === 'build') this.conn.tdSend('td_start', {}); }));
     this._keys.push(ctx.input.onKeyDown('KeyX', () => this._fireNearestUlt()));
     this._keys.push(ctx.input.onKeyDown('KeyY', () => { if (this._resumeOffer) { this._resumeOffer = false; this.conn.tdSend('td_resume', {}); } }));
     this._keys.push(ctx.input.onKeyDown('KeyN', () => { if (this._resumeOffer) { this._resumeOffer = false; this.banner.style.display = 'none'; this.conn.tdSend('td_new', {}); } }));
-    this._onClick = (e) => { if (e.button === 0 && e.target === ctx.canvas && this.placing) this._tryPlace(); };
+    // Placement input. LMB on the 3D view drops the tower; RMB cancels. Works
+    // both with the panel OPEN (free cursor — ghost follows the mouse) and with
+    // it closed (pointer locked — ghost follows the crosshair), so selecting a
+    // tower never has to unlock/relock the pointer.
+    this._mouse = { x: -1, y: -1, seen: false };
+    this._onMove = (e) => { this._mouse.x = e.clientX; this._mouse.y = e.clientY; this._mouse.seen = true; };
+    this._onClick = (e) => {
+      if (!this.placing) return;
+      if (e.button === 2) { this._cancelPlacing(); return; }
+      if (e.button !== 0 || e.target !== ctx.canvas) return;
+      e.preventDefault();
+      this._tryPlace();
+    };
+    window.addEventListener('mousemove', this._onMove);
     window.addEventListener('mousedown', this._onClick);
+    this._ray = new THREE.Raycaster();
     this._eTimer = 0; this._ultT = 0;
     // a crew death bled gold — surface the toll to everyone
     this._onPenalty = (ev) => this.flash(`💀 DEATH TOLL — CREW LOST ${ev.g}g (${ev.pct}%)`, 3200);
@@ -175,7 +195,7 @@ export class TdUi {
       return;
     }
     if (m.ok) { this._render(); return; }
-    const why = {
+    const why = m.detail || {
       gold: 'NOT ENOUGH GOLD', spot: 'INVALID SPOT — BUILD BESIDE THE LANE', locked: 'PATH LOCKED',
       full: 'HANDS FULL — PICK A GUN TO DROP', cooldown: 'ULTIMATE STILL CHARGING',
     }[m.why] || 'NOPE';
@@ -219,12 +239,28 @@ export class TdUi {
     this._eTimer -= dt;
     const me = this.ctx.camera?.getWorldPosition?.(new THREE.Vector3());
     if (!me) return;
+
+    // ---- live placement ghost (green = legal, red = blocked) ----
+    if (this.placing) {
+      const p = this._placePoint();
+      const bad = p ? tdPlaceCheck(p.x, p.z, [...this.view.units.values()]) : 'AIM AT THE GROUND';
+      this.view.setGhost?.(this.placing, p, !bad);
+      this._ghostWhy = bad;
+    } else if (this._ghostWhy !== undefined) {
+      this._ghostWhy = undefined;
+      this.view.setGhost?.(null, null, false);
+    }
+
     let prompt = '';
     const nearArmory = Math.hypot(me.x - TD_ARMORY.x, me.z - TD_ARMORY.z) < 3.4;
     const unit = !nearArmory && this.view.nearestUnit(me, 2.6);
-    if (nearArmory) prompt = '[E] ARMORY — GUNS & UPGRADES';
+    if (this.placing) {
+      const def = UNIT_BY_ID[this.placing];
+      prompt = this._ghostWhy
+        ? `⛔ ${this._ghostWhy} — RMB CANCEL`
+        : `◉ CLICK TO PLACE ${def?.name || ''} (${def?.cost || 0}g) · RMB CANCEL · B PANEL`;
+    } else if (nearArmory) prompt = '[E] ARMORY — GUNS & UPGRADES';
     else if (unit) prompt = `[E] ${unit.def.name} — UPGRADE`;
-    else if (this.placing) prompt = 'CLICK GROUND BESIDE THE LANE TO PLACE · B TO CANCEL';
     this._promptText = prompt;
     if (!this._ht || this.hint.textContent === '' || !this.hint.textContent.startsWith('NOT') ) this.hint.textContent = prompt;
     if (this.ctx.input.consumePressed('interact') && this._eTimer <= 0) {
@@ -249,8 +285,10 @@ export class TdUi {
   }
 
   // ------------------------------------------------------------ placement ---
+  /** Ground point under the CROSSHAIR (pointer locked). */
   _aimPoint() {
     const cam = this.ctx.camera;
+    if (!cam) return null;
     const o = cam.getWorldPosition(new THREE.Vector3());
     const d = cam.getWorldDirection(new THREE.Vector3());
     if (d.y > -0.05) return null;
@@ -258,23 +296,67 @@ export class TdUi {
     if (t < 0 || t > 60) return null;
     return o.add(d.multiplyScalar(t));
   }
+
+  /** Ground point under the free CURSOR (panel open — BTD-style placing). */
+  _cursorPoint() {
+    const cam = this.ctx.camera;
+    if (!cam || !this._mouse.seen) return null;
+    const ndc = new THREE.Vector2((this._mouse.x / window.innerWidth) * 2 - 1, -((this._mouse.y / window.innerHeight) * 2 - 1));
+    this._ray.setFromCamera(ndc, cam);
+    const { origin: o, direction: d } = this._ray.ray;
+    if (d.y > -0.02) return null;
+    const t = -o.y / d.y;
+    if (t < 0 || t > 80) return null;
+    return o.clone().add(d.clone().multiplyScalar(t));
+  }
+
+  /** The spot the ghost is sitting on right now (cursor when unlocked). */
+  _placePoint() {
+    return this.ctx.input.locked ? this._aimPoint() : this._cursorPoint();
+  }
+
+  _cancelPlacing() {
+    this.placing = null;
+    this.ctx.input.setFireBlocked?.(false);
+    this.view.setGhost?.(null, null, false);
+    this.flash('PLACEMENT CANCELLED');
+    if (this._panelMode === 'build') this._render();
+  }
+
   _tryPlace() {
-    const p = this._aimPoint();
+    const p = this._placePoint();
     if (!p) { this.flash('AIM AT THE GROUND'); return; }
+    const def = UNIT_BY_ID[this.placing];
+    if (def && this.state.gold < def.cost) { this.flash('NOT ENOUGH GOLD'); return; }
+    // same rule the server enforces — name the problem instead of a bare "NOPE"
+    const bad = tdPlaceCheck(p.x, p.z, [...this.view.units.values()]);
+    if (bad) { this.flash(bad); return; }
     this.conn.tdSend('td_place', { defId: this.placing, x: +p.x.toFixed(2), z: +p.z.toFixed(2) });
   }
 
   // -------------------------------------------------------------- panels ----
   _open() { return this.panel.classList.contains('on'); }
   _show(mode) {
+    if (mode !== 'build' && this.placing) { // armory/tower trees disarm the build cursor
+      this.placing = null;
+      this.ctx.input.setFireBlocked?.(false);
+      this.view.setGhost?.(null, null, false);
+    }
     this._panelMode = mode;
     if (!this._open()) { this.panel.classList.add('on'); this.ctx.input.pushUI('td'); }
     this._render();
   }
-  _close() {
+  /** Close the panel. keepPlacing leaves a selected tower armed so it can be
+   *  dropped on the crosshair once the pointer re-locks. */
+  _close(keepPlacing = false) {
     this.panel.classList.remove('on');
     this.ctx.input.popUI('td');
-    this._panelMode = null; this.placing = null;
+    this._panelMode = null;
+    if (!keepPlacing) {
+      this.placing = null;
+      this.ctx.input.setFireBlocked?.(false);
+      this.view.setGhost?.(null, null, false);
+    }
   }
 
   _render() {
@@ -286,7 +368,10 @@ export class TdUi {
 
   _renderBuild() {
     const p = this.panel;
-    p.innerHTML = `<h3>BUILD — ${this.state.gold}g (CREW)</h3>` + UNIT_DEFS.map((d) => `
+    const sel = this.placing ? UNIT_BY_ID[this.placing] : null;
+    p.innerHTML = `<h3>BUILD — ${this.state.gold}g (CREW)</h3>`
+      + (sel ? `<div class="tdc-placing">◉ PLACING ${esc(sel.name)}<br><span>CLICK THE GROUND · RIGHT-CLICK CANCELS · B WALKS &amp; PLACES</span></div>` : '')
+      + UNIT_DEFS.map((d) => `
       <div class="tdc-item ${this.placing === d.id ? 'sel' : ''}" data-u="${d.id}">
         <span>${d.icon}</span><span>${esc(d.name)}<br><span class="r ${d.role}">${d.role.toUpperCase()}</span></span>
         <span class="c">${d.cost}g</span>
@@ -297,10 +382,15 @@ export class TdUi {
         return `<div class="tdc-item" data-p="${u.id}"><span>${u.icon}</span><span>${esc(u.name)} ${'▰'.repeat(t)}${'▱'.repeat(u.tiers - t)}<br><span style="font-size:9.5px;opacity:.6">${u.per}</span></span><span class="c">${maxed ? 'MAX' : u.cost(t) + 'g'}</span></div>`;
       }).join('')
       + `<div class="tdc-btn" data-x style="align-self:center">CLOSE (B)</div>`;
+    // Selecting ARMS placement and leaves the panel open — the pointer stays
+    // unlocked, so the very next click lands on the canvas instead of being
+    // eaten by a re-lock. Click the ground with the free cursor to build.
     p.querySelectorAll('[data-u]').forEach((el) => el.addEventListener('click', () => {
-      this.placing = this.placing === el.dataset.u ? null : el.dataset.u;
-      this._close(); // close the panel to aim + click-place
-      if (this.placing) { this.ctx.input.lock?.(); }
+      const id = el.dataset.u;
+      this.placing = this.placing === id ? null : id;
+      this.ctx.input.setFireBlocked?.(!!this.placing); // LMB builds, never shoots
+      if (!this.placing) this.view.setGhost?.(null, null, false);
+      this._render();
     }));
     p.querySelectorAll('[data-p]').forEach((el) => el.addEventListener('click', () => this.conn.tdSend('td_selfup', { id: el.dataset.p })));
     p.querySelector('[data-x]').addEventListener('click', () => this._close());
@@ -379,6 +469,9 @@ export class TdUi {
 
   dispose() {
     window.removeEventListener('mousedown', this._onClick);
+    window.removeEventListener('mousemove', this._onMove);
+    this.ctx.input.setFireBlocked?.(false);
+    this.view.setGhost?.(null, null, false);
     this.ctx.events.off?.('td:penalty', this._onPenalty);
     for (const u of this._keys) { try { u(); } catch { /* fine */ } }
     for (const el of [this.top, this.banner, this.hint, this.panel, this.startBtn, this.ults, this.tip]) el?.remove();

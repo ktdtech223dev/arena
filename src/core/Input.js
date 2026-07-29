@@ -56,16 +56,19 @@ export class Input {
 
   /** Is this action held right now? Always false while a UI panel is open or suppressed. */
   down(action) {
+    if (this._fireBlocked && action === 'fire') return false;
     return this._ui.size === 0 && !this._suppressed && this._down.has(action);
   }
 
   /** Was this action pressed this frame? (peek — does not consume) */
   pressed(action) {
+    if (this._fireBlocked && action === 'fire') return false;
     return this._ui.size === 0 && !this._suppressed && this._pressed.has(action);
   }
 
   /** Was this action pressed this frame? Consumes the edge. */
   consumePressed(action) {
+    if (this._fireBlocked && action === 'fire') { this._pressed.delete(action); return false; }
     if (this._ui.size > 0 || this._suppressed) return false;
     const had = this._pressed.has(action);
     this._pressed.delete(action);
@@ -131,12 +134,26 @@ export class Input {
 
   lock() {
     if (this.locked || this._ui.size > 0) return;
+    // A lock request is ASYNC: without this flag the pause overlay would flash
+    // (or stick, if the browser throttles the re-lock) between closing a panel
+    // and the pointerlockchange — and it covers the canvas, swallowing the very
+    // next click. Suppress the overlay until the request resolves.
+    this._lockPending = true;
+    clearTimeout(this._lockTimer);
+    this._lockTimer = setTimeout(() => { this._lockPending = false; this._updateHint(); }, 1000);
     try {
       const p = this.canvas.requestPointerLock({ unadjustedMovement: true });
       if (p && p.catch) p.catch(() => this.canvas.requestPointerLock());
     } catch {
       this.canvas.requestPointerLock();
     }
+  }
+
+  /** Block ONLY the trigger (movement/look stay live) — TD placement mode uses
+   *  LMB to drop a tower, which must not also fire the gun. */
+  setFireBlocked(v) {
+    this._fireBlocked = !!v;
+    if (v) { this._down.delete('fire'); this._pressed.delete('fire'); }
   }
 
   /** Called by main.js once per rendered frame, after all updates. */
@@ -209,6 +226,8 @@ export class Input {
 
     document.addEventListener('pointerlockchange', () => {
       this.locked = document.pointerLockElement === this.canvas;
+      this._lockPending = false;
+      clearTimeout(this._lockTimer);
       if (!this.locked) {
         this._down.clear();
         this._look.dx = 0;
@@ -219,6 +238,8 @@ export class Input {
 
     document.addEventListener('pointerlockerror', () => {
       this.locked = false;
+      this._lockPending = false;
+      clearTimeout(this._lockTimer);
       this._updateHint();
     });
   }
@@ -298,7 +319,7 @@ export class Input {
   }
 
   _updateHint() {
-    const show = !this.locked && this._ui.size === 0;
+    const show = !this.locked && this._ui.size === 0 && !this._lockPending;
     this._hint.style.display = show ? 'flex' : 'none';
     if (show) {
       const { title, keys } = this._hintText();

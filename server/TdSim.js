@@ -8,14 +8,11 @@
 // server applies each player's damage multiplier, the client applies handling.
 import {
   ENEMY_DEFS, ENEMY_IDS, UNIT_DEFS, UNIT_BY_ID, composeWave, canUpgrade, applyMods,
-  tdPointAt, tdPathLength, tdEnemyPos, tdDistToPath, TD_PATH_W, TD_CORE, TD_ARMORY,
+  tdPointAt, tdPathLength, tdEnemyPos,
   TD_START_GOLD, TD_CORE_HP, TD_SELL_FRAC, TD_SHOP, TD_MAX_GUNS, WEAPON_TREES, PLAYER_UPGRADES,
-  ABILITIES, TD_DEATH_PENALTY,
+  ABILITIES, TD_DEATH_PENALTY, tdPlaceCheck,
 } from '../shared/tddata.js';
 
-const BUILD_MIN = TD_PATH_W / 2 + 1.1;
-const BUILD_MAX = 14;
-const SPACING = 2.6;
 const RESTART_MS = 9000;
 
 let NEXT_EID = 1, NEXT_UID = 1;
@@ -86,10 +83,8 @@ export class TdSim {
     const def = UNIT_BY_ID[defId];
     if (!def) return { ok: false, why: 'bad unit' };
     if (this.gold < def.cost) return { ok: false, why: 'gold' };
-    const d = tdDistToPath(x, z);
-    if (!(d >= BUILD_MIN && d <= BUILD_MAX)) return { ok: false, why: 'spot' };
-    if (Math.hypot(x - TD_CORE.x, z - TD_CORE.z) < 6 || Math.hypot(x - TD_ARMORY.x, z - TD_ARMORY.z) < 3.5) return { ok: false, why: 'spot' };
-    for (const u of this.units) if (Math.hypot(u.x - x, u.z - z) < SPACING) return { ok: false, why: 'spot' };
+    const bad = tdPlaceCheck(x, z, this.units); // same rule the client ghosts with
+    if (bad) return { ok: false, why: 'spot', detail: bad };
     this.gold -= def.cost;
     const u = { uid: NEXT_UID++, defId, def, x, z, tiers: [0, 0, 0], stats: { ...def }, invested: def.cost, owner: player.id, cool: 0, heat: 0, kills: 0, _freezeT: 0, _pulseT: 0, abilityAt: 0 };
     this.units.push(u);

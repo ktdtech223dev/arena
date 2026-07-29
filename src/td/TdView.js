@@ -40,6 +40,47 @@ export class TdView {
     this._ringGeo = new THREE.TorusGeometry(1, 0.07, 6, 28);
   }
 
+  // ------------------------------------------------------ placement ghost ---
+  /** Show a translucent preview + range ring while a tower is selected.
+   *  pos === null hides it. `ok` tints green (legal) or red (blocked). */
+  setGhost(defId, pos, ok) {
+    if (!defId || !pos) {
+      if (this._ghost) { this._ghost.group.visible = false; this._ghostRing.visible = false; }
+      return;
+    }
+    if (!this._ghost || this._ghostId !== defId) {
+      if (this._ghost) this._disposeModel(this._ghost.group);
+      if (this._ghostRing) { this.group.remove(this._ghostRing); this._ghostRing.geometry.dispose(); this._ghostRing.material.dispose(); }
+      const def = UNIT_BY_ID[defId];
+      if (!def) return;
+      this._ghostId = defId;
+      this._ghost = buildUnitModel(def, [0, 0, 0]);
+      this._ghost.group.traverse((o) => {
+        if (!o.isMesh) return;
+        o.castShadow = false; o.receiveShadow = false;
+        o.material = o.material.clone();
+        o.material.transparent = true; o.material.opacity = 0.45; o.material.depthWrite = false;
+      });
+      this.group.add(this._ghost.group);
+      const r = Math.max(2, def.range || 6);
+      this._ghostRing = new THREE.Mesh(
+        new THREE.RingGeometry(r - 0.16, r, 72),
+        new THREE.MeshBasicMaterial({ color: 0x9fe86a, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }),
+      );
+      this._ghostRing.rotation.x = -Math.PI / 2;
+      this.group.add(this._ghostRing);
+    }
+    const tint = ok ? 0x9fe86a : 0xff5f6b;
+    if (this._ghostTint !== tint) {
+      this._ghostTint = tint;
+      this._ghost.group.traverse((o) => { if (o.isMesh && o.material.emissive) { o.material.emissive.setHex(tint); o.material.emissiveIntensity = 0.75; } });
+      this._ghostRing.material.color.setHex(tint);
+    }
+    this._ghost.group.visible = true; this._ghostRing.visible = true;
+    this._ghost.group.position.set(pos.x, 0, pos.z);
+    this._ghostRing.position.set(pos.x, 0.06, pos.z);
+  }
+
   // ---------------------------------------------------------- wire intake ---
   applyHeavy(h) {
     if (!h) return;
@@ -273,6 +314,12 @@ export class TdView {
         this._shells.splice(i, 1);
       }
     }
+    // placement ghost: gentle bob + spin so it reads as a preview, not a build
+    if (this._ghost?.group.visible) {
+      this._ghost.group.rotation.y = this._t * 0.7;
+      this._ghost.group.position.y = Math.sin(this._t * 2.4) * 0.06;
+      this._ghostRing.material.opacity = 0.38 + 0.16 * Math.sin(this._t * 3.4);
+    }
     // expanding shock rings
     for (let i = this._rings.length - 1; i >= 0; i--) {
       const r = this._rings[i];
@@ -352,6 +399,9 @@ export class TdView {
     for (const s of this._shells) { this.group.remove(s.mesh); s.mesh.material.dispose(); }
     for (const r of this._rings) { this.group.remove(r.mesh); r.mesh.material.dispose(); }
     this._shells.length = 0; this._rings.length = 0;
+    if (this._ghost) this._disposeModel(this._ghost.group);
+    if (this._ghostRing) { this.group.remove(this._ghostRing); this._ghostRing.geometry.dispose(); this._ghostRing.material.dispose(); }
+    this._ghost = null; this._ghostRing = null; this._ghostId = null;
     this._shellGeo.dispose(); this._ringGeo.dispose();
     this.ctx.scene.remove(this.group);
   }

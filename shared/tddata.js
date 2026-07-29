@@ -102,6 +102,23 @@ export const TD_START_GOLD = 250;
 export const TD_CORE_HP = 100;
 export const TD_SELL_FRAC = 0.65;
 
+// ---- build rules (ONE source of truth: the server enforces these, and the
+// client uses the same check to colour the placement ghost + name the reason) --
+export const TD_BUILD_MIN = TD_PATH_W / 2 + 1.1;  // no building ON the lane
+export const TD_BUILD_MAX = 14;                   // must overlook the lane
+export const TD_SPACING = 2.6;                    // tower-to-tower clearance
+/** @returns {null} when the spot is legal, else a short human reason. */
+export function tdPlaceCheck(x, z, units = []) {
+  if (!Number.isFinite(x) || !Number.isFinite(z)) return 'AIM AT THE GROUND';
+  const d = tdDistToPath(x, z);
+  if (d < TD_BUILD_MIN) return 'TOO CLOSE TO THE LANE';
+  if (d > TD_BUILD_MAX) return 'TOO FAR FROM THE LANE';
+  if (Math.hypot(x - TD_CORE.x, z - TD_CORE.z) < 6) return 'TOO CLOSE TO THE CORE';
+  if (Math.hypot(x - TD_ARMORY.x, z - TD_ARMORY.z) < 3.5) return 'TOO CLOSE TO THE ARMORY';
+  for (const u of units) if (Math.hypot(u.x - x, u.z - z) < TD_SPACING) return 'TOO CLOSE TO ANOTHER TOWER';
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // TOWERS — 15 units. Costs RAISED (tight economy); sfx/vfx keys drive the
 // client's per-tower audio + attack visuals. Same branching rule as before.
